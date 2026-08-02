@@ -1,0 +1,5 @@
+### direct call to user-service
+GET http://localhost:9001/users/
+
+### same call through the API Gateway
+GET http://localhost:8080/users/

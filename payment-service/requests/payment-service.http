@@ -1,0 +1,5 @@
+### direct call to payment-service
+GET http://localhost:9005/payments/
+
+### same call through the API Gateway
+GET http://localhost:8080/payments/

@@ -1,0 +1,5 @@
+### direct call to delivery-service
+GET http://localhost:9006/deliveries/
+
+### same call through the API Gateway
+GET http://localhost:8080/deliveries/

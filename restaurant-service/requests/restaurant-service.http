@@ -1,0 +1,5 @@
+### direct call to restaurant-service
+GET http://localhost:9002/restaurants/
+
+### same call through the API Gateway
+GET http://localhost:8080/restaurants/
