@@ -35,12 +35,6 @@ public class UserController {
         return new AuthResponse(userService.issueToken(user), user);
     }
 
-    @PostMapping("/social-login")
-    public AuthResponse socialLogin(@RequestBody SocialLoginRequest request) {
-        User user = userService.socialLogin(request.provider(), request.providerId(), request.email(), request.name());
-        return new AuthResponse(userService.issueToken(user), user);
-    }
-
     @GetMapping("/me")
     public User getProfile(@RequestHeader("Authorization") String authHeader) {
         return userService.getCurrentUser(authHeader);
@@ -87,9 +81,6 @@ public class UserController {
     }
 
     public record LoginRequest(String identifier, String password) {
-    }
-
-    public record SocialLoginRequest(String provider, String providerId, String email, String name) {
     }
 
     public record UpdateProfileRequest(String name, String phone, String photo) {

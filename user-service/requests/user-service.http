@@ -21,17 +21,6 @@ Content-Type: application/json
   "password": "secret123"
 }
 
-### social login
-POST {{host}}/users/social-login
-Content-Type: application/json
-
-{
-  "provider": "GOOGLE",
-  "providerId": "google-uid-123",
-  "email": "era.social@example.com",
-  "name": "Era Rahman"
-}
-
 @token = PASTE_TOKEN_HERE
 
 ### get my profile

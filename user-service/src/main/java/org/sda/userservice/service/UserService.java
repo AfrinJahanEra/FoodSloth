@@ -45,7 +45,6 @@ public class UserService {
         user.setEmail(email);
         user.setPhone(phone);
         user.setPassword(passwordEncoder.encode(password));
-        user.setProvider("LOCAL");
         user.setCreatedAt(Instant.now());
 
         User saved = userRepository.save(user);
@@ -64,24 +63,6 @@ public class UserService {
         if (user.getPassword() == null || !passwordEncoder.matches(password, user.getPassword())) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials");
         }
-        user.setPassword(null);
-        return user;
-    }
-
-    public User socialLogin(String provider, String providerId, String email, String name) {
-        if (provider == null || providerId == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "provider and providerId are required");
-        }
-        User user = userRepository.findByProviderAndProviderId(provider, providerId)
-                .orElseGet(() -> {
-                    User newUser = new User();
-                    newUser.setName(name);
-                    newUser.setEmail(email);
-                    newUser.setProvider(provider);
-                    newUser.setProviderId(providerId);
-                    newUser.setCreatedAt(Instant.now());
-                    return userRepository.save(newUser);
-                });
         user.setPassword(null);
         return user;
     }

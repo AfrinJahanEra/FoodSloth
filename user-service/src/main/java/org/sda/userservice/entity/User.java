@@ -38,12 +38,6 @@ public class User {
     private String photo;
 
     @Field
-    private String provider = "LOCAL";
-
-    @Field
-    private String providerId;
-
-    @Field
     private List<Address> addresses = new ArrayList<>();
 
     @Field
