@@ -1,5 +1,112 @@
-### direct call to user-service
-GET http://localhost:9001/users/
+@host = http://localhost:9001
+@gateway = http://localhost:8080
 
-### same call through the API Gateway
-GET http://localhost:8080/users/
+### sign up
+POST {{host}}/users/signup
+Content-Type: application/json
+
+{
+  "name": "Era Rahman",
+  "email": "era@example.com",
+  "phone": "01700000000",
+  "password": "secret123"
+}
+
+### log in (save the returned token to @token)
+POST {{host}}/users/login
+Content-Type: application/json
+
+{
+  "identifier": "era@example.com",
+  "password": "secret123"
+}
+
+### social login
+POST {{host}}/users/social-login
+Content-Type: application/json
+
+{
+  "provider": "GOOGLE",
+  "providerId": "google-uid-123",
+  "email": "era.social@example.com",
+  "name": "Era Rahman"
+}
+
+@token = PASTE_TOKEN_HERE
+
+### get my profile
+GET {{host}}/users/me
+Authorization: Bearer {{token}}
+
+### update my profile
+PUT {{host}}/users/me
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "Era R.",
+  "phone": "01700000001",
+  "photo": "https://example.com/photo.jpg"
+}
+
+### list my addresses
+GET {{host}}/users/me/addresses
+Authorization: Bearer {{token}}
+
+### add an address
+POST {{host}}/users/me/addresses
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "label": "Home",
+  "street": "12 Green Road",
+  "city": "Dhaka",
+  "area": "Dhanmondi",
+  "latitude": 23.7461,
+  "longitude": 90.3742
+}
+
+### update an address (replace {addressId})
+PUT {{host}}/users/me/addresses/{addressId}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "label": "Office",
+  "street": "45 Gulshan Ave",
+  "city": "Dhaka",
+  "area": "Gulshan",
+  "latitude": 23.7925,
+  "longitude": 90.4078
+}
+
+### set an address as default (replace {addressId})
+PUT {{host}}/users/me/addresses/{addressId}/default
+Authorization: Bearer {{token}}
+
+### delete an address (replace {addressId})
+DELETE {{host}}/users/me/addresses/{addressId}
+Authorization: Bearer {{token}}
+
+### update food preferences / dietary tags / default payment method reference
+PUT {{host}}/users/me/preferences
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "foodPreferences": ["spicy", "vegetarian-friendly"],
+  "dietaryTags": ["vegan", "no-nuts"],
+  "defaultPaymentMethod": "payment-method-id-123"
+}
+
+### same signup call through the API Gateway
+POST {{gateway}}/users/signup
+Content-Type: application/json
+
+{
+  "name": "Gateway Test",
+  "email": "gateway.test@example.com",
+  "phone": "01800000000",
+  "password": "secret123"
+}
