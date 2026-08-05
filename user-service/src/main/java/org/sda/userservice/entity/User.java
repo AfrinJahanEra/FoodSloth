@@ -38,6 +38,18 @@ public class User {
     private String photo;
 
     @Field
+    private Role role = Role.CUSTOMER;
+
+    @Field
+    private String vehicleType;
+
+    @Field
+    private String licenseNumber;
+
+    @Field
+    private String restaurantId;
+
+    @Field
     private List<Address> addresses = new ArrayList<>();
 
     @Field

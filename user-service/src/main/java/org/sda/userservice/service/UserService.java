@@ -2,6 +2,7 @@ package org.sda.userservice.service;
 
 import io.jsonwebtoken.JwtException;
 import org.sda.userservice.entity.Address;
+import org.sda.userservice.entity.Role;
 import org.sda.userservice.entity.User;
 import org.sda.userservice.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,7 +27,8 @@ public class UserService {
 
     private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
-    public User signup(String name, String email, String phone, String password) {
+    public User signup(String name, String email, String phone, String password, Role role,
+                        String vehicleType, String licenseNumber, String restaurantId) {
         if (email == null || email.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Email is required");
         }
@@ -40,12 +42,31 @@ public class UserService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Phone already registered");
         }
 
+        Role effectiveRole = role != null ? role : Role.CUSTOMER;
+        if (effectiveRole == Role.DELIVERYMAN
+                && (vehicleType == null || vehicleType.isBlank() || licenseNumber == null || licenseNumber.isBlank())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "vehicleType and licenseNumber are required for a deliveryman signup");
+        }
+        if (effectiveRole == Role.ADMIN && (restaurantId == null || restaurantId.isBlank())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "restaurantId is required for an admin signup");
+        }
+
         User user = new User();
         user.setName(name);
         user.setEmail(email);
         user.setPhone(phone);
         user.setPassword(passwordEncoder.encode(password));
+        user.setRole(effectiveRole);
         user.setCreatedAt(Instant.now());
+
+        if (effectiveRole == Role.DELIVERYMAN) {
+            user.setVehicleType(vehicleType);
+            user.setLicenseNumber(licenseNumber);
+        } else if (effectiveRole == Role.ADMIN) {
+            user.setRestaurantId(restaurantId);
+        }
 
         User saved = userRepository.save(user);
         saved.setPassword(null);
@@ -68,13 +89,31 @@ public class UserService {
     }
 
     public String issueToken(User user) {
-        return jwtService.generateToken(user.getId(), user.getEmail());
+        return jwtService.generateToken(user.getId(), user.getEmail(), user.getRole().name());
     }
 
     public User getCurrentUser(String authHeader) {
         User user = loadUserFromToken(authHeader);
         user.setPassword(null);
         return user;
+    }
+
+    public List<User> listUsers(String authHeader) {
+        requireAdmin(authHeader);
+        List<User> users = userRepository.findAll();
+        users.forEach(u -> u.setPassword(null));
+        return users;
+    }
+
+    public void deleteUser(String authHeader, String userId) {
+        User admin = requireAdmin(authHeader);
+        if (userId.equals(admin.getId())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot delete your own admin account");
+        }
+        if (!userRepository.existsById(userId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found");
+        }
+        userRepository.deleteById(userId);
     }
 
     public User updateProfile(String authHeader, String name, String phone, String photo) {
@@ -180,5 +219,13 @@ public class UserService {
         }
         return userRepository.findById(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not found"));
+    }
+
+    private User requireAdmin(String authHeader) {
+        User user = loadUserFromToken(authHeader);
+        if (user.getRole() != Role.ADMIN) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Admin role required");
+        }
+        return user;
     }
 }

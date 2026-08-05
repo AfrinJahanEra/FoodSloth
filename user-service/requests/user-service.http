@@ -1,7 +1,7 @@
 @host = http://localhost:9001
 @gateway = http://localhost:8080
 
-### sign up
+### sign up (customer - default role)
 POST {{host}}/users/signup
 Content-Type: application/json
 
@@ -12,7 +12,34 @@ Content-Type: application/json
   "password": "secret123"
 }
 
-### log in (save the returned token to @token)
+### sign up (deliveryman)
+POST {{host}}/users/signup
+Content-Type: application/json
+
+{
+  "name": "Karim Delivery",
+  "email": "karim.delivery@example.com",
+  "phone": "01700000002",
+  "password": "secret123",
+  "role": "DELIVERYMAN",
+  "vehicleType": "MOTORBIKE",
+  "licenseNumber": "DL-123456"
+}
+
+### sign up (admin)
+POST {{host}}/users/signup
+Content-Type: application/json
+
+{
+  "name": "Rahim Owner",
+  "email": "rahim.owner@example.com",
+  "phone": "01700000003",
+  "password": "secret123",
+  "role": "ADMIN",
+  "restaurantId": "restaurant-id-123"
+}
+
+### log in (works for any role - save the returned token to @token)
 POST {{host}}/users/login
 Content-Type: application/json
 
@@ -22,6 +49,7 @@ Content-Type: application/json
 }
 
 @token = PASTE_TOKEN_HERE
+@adminToken = PASTE_ADMIN_TOKEN_HERE
 
 ### get my profile
 GET {{host}}/users/me
@@ -88,6 +116,14 @@ Content-Type: application/json
   "dietaryTags": ["vegan", "no-nuts"],
   "defaultPaymentMethod": "payment-method-id-123"
 }
+
+### list all users (admin only, log in as the admin account above and paste its token into @adminToken)
+GET {{host}}/users
+Authorization: Bearer {{adminToken}}
+
+### delete a user (admin only, replace {userId})
+DELETE {{host}}/users/{userId}
+Authorization: Bearer {{adminToken}}
 
 ### same signup call through the API Gateway
 POST {{gateway}}/users/signup

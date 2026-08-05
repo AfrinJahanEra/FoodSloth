@@ -1,6 +1,7 @@
 package org.sda.userservice.controller;
 
 import org.sda.userservice.entity.Address;
+import org.sda.userservice.entity.Role;
 import org.sda.userservice.entity.User;
 import org.sda.userservice.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,7 +26,8 @@ public class UserController {
 
     @PostMapping("/signup")
     public AuthResponse signup(@RequestBody SignupRequest request) {
-        User user = userService.signup(request.name(), request.email(), request.phone(), request.password());
+        User user = userService.signup(request.name(), request.email(), request.phone(), request.password(),
+                request.role(), request.vehicleType(), request.licenseNumber(), request.restaurantId());
         return new AuthResponse(userService.issueToken(user), user);
     }
 
@@ -77,7 +79,18 @@ public class UserController {
         return userService.updatePreferences(authHeader, request.foodPreferences(), request.dietaryTags(), request.defaultPaymentMethod());
     }
 
-    public record SignupRequest(String name, String email, String phone, String password) {
+    @GetMapping
+    public List<User> listUsers(@RequestHeader("Authorization") String authHeader) {
+        return userService.listUsers(authHeader);
+    }
+
+    @DeleteMapping("/{userId}")
+    public void deleteUser(@RequestHeader("Authorization") String authHeader, @PathVariable String userId) {
+        userService.deleteUser(authHeader, userId);
+    }
+
+    public record SignupRequest(String name, String email, String phone, String password, Role role,
+                                 String vehicleType, String licenseNumber, String restaurantId) {
     }
 
     public record LoginRequest(String identifier, String password) {
