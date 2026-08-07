@@ -9,8 +9,9 @@ import java.util.List;
 // rather than accepting items directly from the client.
 // userId is deliberately not a field here: it is derived from the authenticated JWT rather
 // than trusted from the request body, so a client can't place orders on another user's behalf.
+// restaurantId is deliberately not a field here either: this system serves a single restaurant,
+// so the order is always attributed to the restaurant configured via app.restaurant-id.
 public record CreateOrderRequest(
-        String restaurantId,
         String deliveryAddressId,
         DeliveryType deliveryType,
         PaymentMethod paymentMethod,

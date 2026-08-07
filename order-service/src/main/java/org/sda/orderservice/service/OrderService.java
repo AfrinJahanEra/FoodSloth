@@ -12,6 +12,7 @@ import org.sda.orderservice.repository.OrderRepository;
 import io.jsonwebtoken.JwtException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -34,11 +35,14 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final OrderEventPublisher eventPublisher;
     private final JwtService jwtService;
+    private final String restaurantId;
 
-    public OrderService(OrderRepository orderRepository, OrderEventPublisher eventPublisher, JwtService jwtService) {
+    public OrderService(OrderRepository orderRepository, OrderEventPublisher eventPublisher, JwtService jwtService,
+                         @Value("${app.restaurant-id}") String restaurantId) {
         this.orderRepository = orderRepository;
         this.eventPublisher = eventPublisher;
         this.jwtService = jwtService;
+        this.restaurantId = restaurantId;
     }
 
     public OrderResponse createOrder(String authHeader, CreateOrderRequest request) {
@@ -91,7 +95,7 @@ public class OrderService {
         // TODO: ideally re-validate item availability and refresh prices via Restaurant Service
         // before reordering, since the previous order's items are a point-in-time snapshot.
         CreateOrderRequest request = new CreateOrderRequest(
-                original.getRestaurantId(), original.getDeliveryAddressId(),
+                original.getDeliveryAddressId(),
                 original.getDeliveryType(), original.getPaymentMethod(), items);
         return createOrder(authHeader, request);
     }
@@ -157,9 +161,6 @@ public class OrderService {
         if (request.items() == null || request.items().isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Order must contain at least one item");
         }
-        if (request.restaurantId() == null || request.restaurantId().isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "restaurantId is required");
-        }
         if (request.deliveryType() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "deliveryType is required");
         }
@@ -175,7 +176,7 @@ public class OrderService {
 
         Order order = new Order();
         order.setUserId(userId);
-        order.setRestaurantId(request.restaurantId());
+        order.setRestaurantId(restaurantId);
         order.setDeliveryAddressId(request.deliveryAddressId());
         order.setDeliveryType(request.deliveryType());
         order.setPaymentMethod(request.paymentMethod());
