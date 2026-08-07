@@ -1,5 +1,0 @@
-### direct call to cart-service
-GET http://localhost:9003/carts/
-
-### same call through the API Gateway
-GET http://localhost:8080/carts/
