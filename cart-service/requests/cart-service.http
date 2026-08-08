@@ -1,5 +1,80 @@
-### direct call to cart-service
-GET http://localhost:9003/carts/
+@host = http://localhost:9003
+@gateway = http://localhost:8080
 
-### same call through the API Gateway
-GET http://localhost:8080/carts/
+### NOTE: adding/updating items requires Restaurant Service to be registered
+### with Eureka (service-registry running, restaurant-service up) and to
+### expose GET /restaurants/menu/{itemId} -> { "id", "name", "price", "available" }.
+### Cart Service resolves restaurant-service's address from Eureka directly -
+### it does not go through the API Gateway for this call.
+### See service/RestaurantClient.java for the exact contract this service calls.
+
+### get my cart (auto-creates an empty one in the response if none exists yet)
+GET {{host}}/carts/user-1
+
+### add an item to the cart - only itemId/quantity are trusted from the client,
+### name/price/availability are fetched live from Restaurant Service
+POST {{host}}/carts/user-1/items
+Content-Type: application/json
+
+{
+  "itemId": "item-1",
+  "quantity": 2
+}
+
+### add another item
+POST {{host}}/carts/user-1/items
+Content-Type: application/json
+
+{
+  "itemId": "item-2",
+  "quantity": 1
+}
+
+### add more of an item already in the cart (quantity accumulates, price/name refreshed)
+POST {{host}}/carts/user-1/items
+Content-Type: application/json
+
+{
+  "itemId": "item-1",
+  "quantity": 1
+}
+
+### update an item's quantity (re-checks price/availability with Restaurant Service)
+PUT {{host}}/carts/user-1/items/item-1
+Content-Type: application/json
+
+{
+  "quantity": 3
+}
+
+### setting quantity to 0 removes the item (no Restaurant Service call needed)
+PUT {{host}}/carts/user-1/items/item-1
+Content-Type: application/json
+
+{
+  "quantity": 0
+}
+
+### remove an item directly
+DELETE {{host}}/carts/user-1/items/item-2
+
+### apply a coupon code (held only - Order Service validates/applies it at checkout)
+PUT {{host}}/carts/user-1/coupon
+Content-Type: application/json
+
+{
+  "couponCode": "WELCOME10"
+}
+
+### remove the coupon
+DELETE {{host}}/carts/user-1/coupon
+
+### checkout - publishes a CartCheckedOut event to RabbitMQ for Order Service,
+### then clears the cart
+POST {{host}}/carts/user-1/checkout
+
+### clear the whole cart manually (e.g. user abandons it)
+DELETE {{host}}/carts/user-1
+
+### same get-cart call through the API Gateway
+GET {{gateway}}/carts/user-1
