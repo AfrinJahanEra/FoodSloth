@@ -3,3 +3,38 @@ GET http://localhost:9005/payments/
 
 ### same call through the API Gateway
 GET http://localhost:8080/payments/
+
+### create a Stripe Checkout session for an order
+### amount is in poisha (1/100 taka), so 25000 = BDT 250.00. Minimum is 10000 (BDT 100.00) -
+### Stripe rejects amounts that convert to under ~$0.50, so a small poisha amount can be rejected.
+POST http://localhost:9005/payments/checkout-session
+Content-Type: application/json
+
+{
+  "orderId": "order-123",
+  "userId": "user-456",
+  "amount": 25000,
+  "currency": "bdt",
+  "description": "FoodSloth order #123"
+}
+
+### open the "checkoutUrl" from the response above in a browser and pay with test card 4242 4242 4242 4242,
+### any future expiry date, any CVC, any postal code.
+### Stripe then redirects the browser to /payments/checkout-success, which verifies the session,
+### updates the payment status, best-effort notifies order-service, and shows a confirmation page.
+
+### manually verify a session (useful if you're not running the Stripe CLI webhook listener
+### and didn't go through the browser success redirect)
+GET http://localhost:9005/payments/session/{{sessionId}}/verify
+
+### fetch a payment by its Mongo id
+GET http://localhost:9005/payments/{{paymentId}}
+
+### fetch the payment for a given order
+GET http://localhost:9005/payments/order/order-123
+
+### fetch all payments for a given user
+GET http://localhost:9005/payments/user/user-456
+
+### refund a succeeded payment
+POST http://localhost:9005/payments/{{paymentId}}/refund

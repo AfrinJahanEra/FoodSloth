@@ -2,17 +2,33 @@ server:
   port: 9005
 
 spring:
+  config:
+    import: "optional:file:./secrets.yml"
+
   application:
     name: payment-service
 
   mongodb:
     uri: mongodb+srv://era97:era97@cluster0.rali5he.mongodb.net/?appName=Cluster0
     database: food_payment_db
+  web:
+    error:
+      include-stacktrace: never
+      include-message: always
 
 management:
   health:
     mongodb:
       enabled: false
+
+stripe:
+  api:
+    secret-key: ${STRIPE_SECRET_KEY:sk_test_replace_with_your_key}
+  webhook:
+    secret: ${STRIPE_WEBHOOK_SECRET:whsec_replace_with_your_webhook_secret}
+  checkout:
+    success-url: ${STRIPE_SUCCESS_URL:http://localhost:9005/payments/checkout-success?session_id={CHECKOUT_SESSION_ID}}
+    cancel-url: ${STRIPE_CANCEL_URL:http://localhost:9005/payments/checkout-cancel?session_id={CHECKOUT_SESSION_ID}}
 
 eureka:
   client:
