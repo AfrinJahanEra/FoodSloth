@@ -1,0 +1,30 @@
+server:
+  port: 9003
+
+spring:
+  application:
+    name: cart-service
+  rabbitmq:
+    addresses: localhost:5672
+
+  mongodb:
+    uri: mongodb+srv://era97:era97@cluster0.rali5he.mongodb.net/?appName=Cluster0
+    database: food_cart_db
+
+cart:
+  tax-rate: 0.05
+  delivery-fee: 60.0
+
+management:
+  health:
+    mongodb:
+      enabled: false
+
+eureka:
+  client:
+    register-with-eureka: true
+    fetch-registry: true
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+  instance:
+    hostname: localhost
