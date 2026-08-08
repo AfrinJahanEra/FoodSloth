@@ -1,8 +1,8 @@
-@host = http://localhost:9002
-@gateway = http://localhost:8080
+@direct = http://localhost:9002
+@host = http://localhost:8080
 
 ### log in as a restaurant admin/staff account (ADMIN role, from user-service) - save the token to @adminToken
-POST http://localhost:9001/users/login
+POST {{host}}/users/login
 Content-Type: application/json
 
 {
@@ -12,10 +12,12 @@ Content-Type: application/json
 
 @adminToken = PASTE_TOKEN_HERE
 
-### get the restaurant profile (public - auto-created on first request if it doesn't exist yet)
-GET {{host}}/restaurant
+### get the restaurant profile (public reads work directly on the service too - no gateway needed)
+GET {{direct}}/restaurant
 
-### update the restaurant profile (admin only)
+### update the restaurant profile (admin only - must go through the gateway, it verifies the
+### JWT and forwards identity as X-User-Role; hitting the service directly on 9002 with just
+### an Authorization header will now be rejected, since restaurant-service no longer parses JWTs)
 PUT {{host}}/restaurant
 Authorization: Bearer {{adminToken}}
 Content-Type: application/json
@@ -29,7 +31,7 @@ Content-Type: application/json
   "longitude": 90.4078
 }
 
-### toggle open/closed status (admin only)
+### toggle open/closed status (admin only, through gateway)
 PATCH {{host}}/restaurant/status
 Authorization: Bearer {{adminToken}}
 Content-Type: application/json
@@ -38,7 +40,7 @@ Content-Type: application/json
   "open": false
 }
 
-### set operating hours (admin only)
+### set operating hours (admin only, through gateway)
 PUT {{host}}/restaurant/hours
 Authorization: Bearer {{adminToken}}
 Content-Type: application/json
@@ -48,10 +50,10 @@ Content-Type: application/json
   { "day": "TUESDAY", "openTime": "10:00", "closeTime": "22:00" }
 ]
 
-### get the menu (public)
-GET {{host}}/restaurant/menu
+### get the menu (public - direct or gateway both work)
+GET {{direct}}/restaurant/menu
 
-### add a menu item (admin only)
+### add a menu item (admin only, through gateway)
 POST {{host}}/restaurant/menu
 Authorization: Bearer {{adminToken}}
 Content-Type: application/json
@@ -66,7 +68,7 @@ Content-Type: application/json
 
 @menuItemId = PASTE_MENU_ITEM_ID_HERE
 
-### update a menu item (admin only)
+### update a menu item (admin only, through gateway)
 PUT {{host}}/restaurant/menu/{{menuItemId}}
 Authorization: Bearer {{adminToken}}
 Content-Type: application/json
@@ -77,9 +79,6 @@ Content-Type: application/json
   "available": true
 }
 
-### delete a menu item (admin only)
+### delete a menu item (admin only, through gateway)
 DELETE {{host}}/restaurant/menu/{{menuItemId}}
 Authorization: Bearer {{adminToken}}
-
-### same call through the API Gateway
-GET {{gateway}}/restaurant

@@ -1,6 +1,5 @@
 package org.sda.restaurantservice.service;
 
-import io.jsonwebtoken.JwtException;
 import org.sda.restaurantservice.entity.MenuItem;
 import org.sda.restaurantservice.entity.OperatingHours;
 import org.sda.restaurantservice.entity.Restaurant;
@@ -17,15 +16,15 @@ import java.util.UUID;
  * Single-tenant service: this whole app is built for one restaurant, so there is exactly
  * one Restaurant document. It is lazily created on first read/write instead of requiring
  * a separate "create restaurant" call.
+ *
+ * Auth note: the JWT itself is verified by api-gateway, not here. The gateway forwards the
+ * caller's identity via the X-User-Role (and X-User-Id) headers, which this service trusts.
  */
 @Service
 public class RestaurantService {
 
     @Autowired
     private RestaurantRepository restaurantRepository;
-
-    @Autowired
-    private JwtService jwtService;
 
     public Restaurant getRestaurant() {
         List<Restaurant> all = restaurantRepository.findAll();
@@ -37,8 +36,8 @@ public class RestaurantService {
         return restaurantRepository.save(restaurant);
     }
 
-    public Restaurant updateRestaurant(String authHeader, Restaurant updated) {
-        requireAdmin(authHeader);
+    public Restaurant updateRestaurant(String role, Restaurant updated) {
+        requireAdmin(role);
         Restaurant restaurant = getRestaurant();
         if (updated.getName() != null && !updated.getName().isBlank()) {
             restaurant.setName(updated.getName());
@@ -64,15 +63,15 @@ public class RestaurantService {
         return restaurantRepository.save(restaurant);
     }
 
-    public Restaurant setOpenStatus(String authHeader, boolean open) {
-        requireAdmin(authHeader);
+    public Restaurant setOpenStatus(String role, boolean open) {
+        requireAdmin(role);
         Restaurant restaurant = getRestaurant();
         restaurant.setOpen(open);
         return restaurantRepository.save(restaurant);
     }
 
-    public Restaurant updateOperatingHours(String authHeader, List<OperatingHours> hours) {
-        requireAdmin(authHeader);
+    public Restaurant updateOperatingHours(String role, List<OperatingHours> hours) {
+        requireAdmin(role);
         Restaurant restaurant = getRestaurant();
         restaurant.setOperatingHours(hours);
         return restaurantRepository.save(restaurant);
@@ -82,8 +81,8 @@ public class RestaurantService {
         return getRestaurant().getMenu();
     }
 
-    public Restaurant addMenuItem(String authHeader, MenuItem item) {
-        requireAdmin(authHeader);
+    public Restaurant addMenuItem(String role, MenuItem item) {
+        requireAdmin(role);
         if (item.getName() == null || item.getName().isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Menu item name is required");
         }
@@ -96,8 +95,8 @@ public class RestaurantService {
         return restaurantRepository.save(restaurant);
     }
 
-    public Restaurant updateMenuItem(String authHeader, String itemId, MenuItem updated) {
-        requireAdmin(authHeader);
+    public Restaurant updateMenuItem(String role, String itemId, MenuItem updated) {
+        requireAdmin(role);
         Restaurant restaurant = getRestaurant();
         MenuItem existing = restaurant.getMenu().stream()
                 .filter(item -> item.getId().equals(itemId))
@@ -125,8 +124,8 @@ public class RestaurantService {
         return restaurantRepository.save(restaurant);
     }
 
-    public Restaurant deleteMenuItem(String authHeader, String itemId) {
-        requireAdmin(authHeader);
+    public Restaurant deleteMenuItem(String role, String itemId) {
+        requireAdmin(role);
         Restaurant restaurant = getRestaurant();
         boolean removed = restaurant.getMenu().removeIf(item -> item.getId().equals(itemId));
         if (!removed) {
@@ -135,16 +134,9 @@ public class RestaurantService {
         return restaurantRepository.save(restaurant);
     }
 
-    private void requireAdmin(String authHeader) {
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Missing or invalid Authorization header");
-        }
-        String token = authHeader.substring(7);
-        String role;
-        try {
-            role = jwtService.extractRole(token);
-        } catch (JwtException | IllegalArgumentException e) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid or expired token");
+    private void requireAdmin(String role) {
+        if (role == null || role.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Missing or invalid Authorization token");
         }
         if (!"ADMIN".equals(role)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Restaurant admin role required");

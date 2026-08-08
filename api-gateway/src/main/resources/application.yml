@@ -44,6 +44,9 @@ spring:
               predicates:
                 - Path=/notifications/**
 
+jwt:
+  secret: food-delivery-user-service-jwt-secret-key-change-me-2026
+
 eureka:
   client:
     register-with-eureka: true

@@ -22,6 +22,10 @@ import java.util.Map;
 /**
  * Single-tenant: this whole service represents one restaurant, so there is no
  * restaurant id in these routes - only /restaurant (the one profile) and its menu.
+ *
+ * Auth note: api-gateway verifies the JWT and forwards the caller's role via the
+ * X-User-Role header. This service does not parse tokens itself - it trusts the header,
+ * which only api-gateway is allowed to set (client-supplied copies are stripped there).
  */
 @RestController
 @RequestMapping("/restaurant")
@@ -36,21 +40,21 @@ public class RestaurantController {
     }
 
     @PutMapping
-    public Restaurant updateRestaurant(@RequestHeader("Authorization") String authHeader,
+    public Restaurant updateRestaurant(@RequestHeader(value = "X-User-Role", required = false) String role,
                                         @RequestBody Restaurant restaurant) {
-        return restaurantService.updateRestaurant(authHeader, restaurant);
+        return restaurantService.updateRestaurant(role, restaurant);
     }
 
     @PatchMapping("/status")
-    public Restaurant setOpenStatus(@RequestHeader("Authorization") String authHeader,
+    public Restaurant setOpenStatus(@RequestHeader(value = "X-User-Role", required = false) String role,
                                      @RequestBody Map<String, Boolean> body) {
-        return restaurantService.setOpenStatus(authHeader, Boolean.TRUE.equals(body.get("open")));
+        return restaurantService.setOpenStatus(role, Boolean.TRUE.equals(body.get("open")));
     }
 
     @PutMapping("/hours")
-    public Restaurant updateOperatingHours(@RequestHeader("Authorization") String authHeader,
+    public Restaurant updateOperatingHours(@RequestHeader(value = "X-User-Role", required = false) String role,
                                             @RequestBody List<OperatingHours> hours) {
-        return restaurantService.updateOperatingHours(authHeader, hours);
+        return restaurantService.updateOperatingHours(role, hours);
     }
 
     @GetMapping("/menu")
@@ -59,21 +63,21 @@ public class RestaurantController {
     }
 
     @PostMapping("/menu")
-    public Restaurant addMenuItem(@RequestHeader("Authorization") String authHeader,
+    public Restaurant addMenuItem(@RequestHeader(value = "X-User-Role", required = false) String role,
                                    @RequestBody MenuItem item) {
-        return restaurantService.addMenuItem(authHeader, item);
+        return restaurantService.addMenuItem(role, item);
     }
 
     @PutMapping("/menu/{itemId}")
-    public Restaurant updateMenuItem(@RequestHeader("Authorization") String authHeader,
+    public Restaurant updateMenuItem(@RequestHeader(value = "X-User-Role", required = false) String role,
                                       @PathVariable String itemId,
                                       @RequestBody MenuItem item) {
-        return restaurantService.updateMenuItem(authHeader, itemId, item);
+        return restaurantService.updateMenuItem(role, itemId, item);
     }
 
     @DeleteMapping("/menu/{itemId}")
-    public Restaurant deleteMenuItem(@RequestHeader("Authorization") String authHeader,
+    public Restaurant deleteMenuItem(@RequestHeader(value = "X-User-Role", required = false) String role,
                                       @PathVariable String itemId) {
-        return restaurantService.deleteMenuItem(authHeader, itemId);
+        return restaurantService.deleteMenuItem(role, itemId);
     }
 }
