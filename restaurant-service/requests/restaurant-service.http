@@ -1,5 +1,85 @@
-### direct call to restaurant-service
-GET http://localhost:9002/restaurants/
+@host = http://localhost:9002
+@gateway = http://localhost:8080
+
+### log in as a restaurant admin/staff account (ADMIN role, from user-service) - save the token to @adminToken
+POST http://localhost:9001/users/login
+Content-Type: application/json
+
+{
+  "identifier": "rahim.owner@example.com",
+  "password": "secret123"
+}
+
+@adminToken = PASTE_TOKEN_HERE
+
+### get the restaurant profile (public - auto-created on first request if it doesn't exist yet)
+GET {{host}}/restaurant
+
+### update the restaurant profile (admin only)
+PUT {{host}}/restaurant
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "name": "Tasty Bites",
+  "description": "Your neighborhood fast food spot",
+  "address": "45 Gulshan Ave, Dhaka",
+  "phone": "01700000000",
+  "latitude": 23.7925,
+  "longitude": 90.4078
+}
+
+### toggle open/closed status (admin only)
+PATCH {{host}}/restaurant/status
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "open": false
+}
+
+### set operating hours (admin only)
+PUT {{host}}/restaurant/hours
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+[
+  { "day": "MONDAY", "openTime": "10:00", "closeTime": "22:00" },
+  { "day": "TUESDAY", "openTime": "10:00", "closeTime": "22:00" }
+]
+
+### get the menu (public)
+GET {{host}}/restaurant/menu
+
+### add a menu item (admin only)
+POST {{host}}/restaurant/menu
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "name": "Spicy Chicken Burger",
+  "description": "Crispy fried chicken burger with spicy mayo",
+  "category": "Burgers",
+  "price": 350,
+  "photo": "https://example.com/spicy-chicken-burger.jpg"
+}
+
+@menuItemId = PASTE_MENU_ITEM_ID_HERE
+
+### update a menu item (admin only)
+PUT {{host}}/restaurant/menu/{{menuItemId}}
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "name": "Spicy Chicken Burger",
+  "price": 380,
+  "available": true
+}
+
+### delete a menu item (admin only)
+DELETE {{host}}/restaurant/menu/{{menuItemId}}
+Authorization: Bearer {{adminToken}}
 
 ### same call through the API Gateway
-GET http://localhost:8080/restaurants/
+GET {{gateway}}/restaurant
