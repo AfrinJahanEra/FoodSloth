@@ -17,7 +17,7 @@ spring:
             - id: restaurant-service
               uri: lb://RESTAURANT-SERVICE
               predicates:
-                - Path=/restaurants/**
+                - Path=/restaurant/**
 
             - id: cart-service
               uri: lb://CART-SERVICE
@@ -43,6 +43,9 @@ spring:
               uri: lb://NOTIFICATION-SERVICE
               predicates:
                 - Path=/notifications/**
+
+jwt:
+  secret: food-delivery-user-service-jwt-secret-key-change-me-2026
 
 eureka:
   client:
