@@ -9,6 +9,12 @@ spring:
     uri: mongodb+srv://era97:era97@cluster0.rali5he.mongodb.net/?appName=Cluster0
     database: food_notification_db
 
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: guest
+    password: guest
+
 management:
   health:
     mongodb:

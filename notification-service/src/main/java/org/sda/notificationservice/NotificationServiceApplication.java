@@ -10,10 +10,13 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * Reached through api-gateway at /notifications/**
  *
  * Package layout:
- *   org.sda.notificationservice.controller  - REST endpoints
- *   org.sda.notificationservice.entity      - MongoDB documents
- *   org.sda.notificationservice.repository  - data access
- *   org.sda.notificationservice.service     - business logic
+ *   org.sda.notificationservice.listener  - RabbitMQ event consumers
+ *   org.sda.notificationservice.config    - RabbitMQ topology configuration and constants
+ *   org.sda.notificationservice.service   - notification formatting/dispatch
+ *   org.sda.notificationservice.dto.event - inbound event payloads
+ *
+ * No REST endpoints; this service only consumes RabbitMQ events (order.confirmed,
+ * order.cancelled, order.delivered) and logs a formatted notification message.
  *
  * Start order: service-registry (8761) first, then this service, then api-gateway (8080).
  */
