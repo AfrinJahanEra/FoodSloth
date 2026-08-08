@@ -53,6 +53,9 @@ Content-Type: application/json
 ### get the menu (public - direct or gateway both work)
 GET {{direct}}/restaurant/menu
 
+### get a single menu item (public, replace {itemId})
+GET {{direct}}/restaurant/menu/{itemId}
+
 ### add a menu item (admin only, through gateway)
 POST {{host}}/restaurant/menu
 Authorization: Bearer {{adminToken}}

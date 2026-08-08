@@ -81,6 +81,13 @@ public class RestaurantService {
         return getRestaurant().getMenu();
     }
 
+    public MenuItem getMenuItem(String itemId) {
+        return getRestaurant().getMenu().stream()
+                .filter(item -> item.getId().equals(itemId))
+                .findFirst()
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Menu item not found"));
+    }
+
     public Restaurant addMenuItem(String role, MenuItem item) {
         requireAdmin(role);
         if (item.getName() == null || item.getName().isBlank()) {

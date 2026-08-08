@@ -62,6 +62,11 @@ public class RestaurantController {
         return restaurantService.getMenu();
     }
 
+    @GetMapping("/menu/{itemId}")
+    public MenuItem getMenuItem(@PathVariable String itemId) {
+        return restaurantService.getMenuItem(itemId);
+    }
+
     @PostMapping("/menu")
     public Restaurant addMenuItem(@RequestHeader(value = "X-User-Role", required = false) String role,
                                    @RequestBody MenuItem item) {
