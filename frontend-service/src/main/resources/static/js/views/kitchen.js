@@ -34,6 +34,25 @@ function assignableRiders(riders) {
     return riders.filter(r => r.status !== 'OFFLINE' && r.slotsRemainingToday > 0);
 }
 
+/**
+ * A rider <select> that remembers what was chosen for this delivery across re-renders, so a
+ * 5s poll rebuilding the DOM mid-choice can't quietly swap the admin's pick back to the first
+ * candidate in the list. `pickedRider` is the Map the caller keeps outside the render function.
+ */
+function riderSelect(deliveryId, candidates, pickedRider) {
+    const current = pickedRider.has(deliveryId) && candidates.some(r => r.id === pickedRider.get(deliveryId))
+        ? pickedRider.get(deliveryId)
+        : candidates[0].id;
+    pickedRider.set(deliveryId, current);
+
+    const pick = UI.el('select', { onchange: (e) => pickedRider.set(deliveryId, e.target.value) },
+        ...candidates.map(r => UI.el('option', {
+            value: r.id,
+            selected: r.id === current ? 'selected' : null
+        }, (r.displayName || r.id.slice(0, 8) + '…') + ' · ' + r.slotsRemainingToday + ' slot(s) left')));
+    return pick;
+}
+
 /** Ticket left-border accent by meaning. */
 const TICKET_ACCENT = {
     QUEUED: 's-new', AWAITING_PAYMENT: 's-new',
@@ -78,6 +97,14 @@ App.register('/kitchen', {
 
         /** Order ids whose "Show details" panel is open - survives the 5s refresh. */
         const expanded = new Set();
+
+        /**
+         * Rider picked per delivery id, kept outside the 5s refresh's DOM rebuild. Without this the
+         * poll recreates the <select> from scratch every cycle, which silently resets it to whatever
+         * candidate happens to be first - so a selection the admin made a moment ago (but hadn't
+         * clicked "Assign"/"Hand over" on yet) would quietly revert.
+         */
+        const pickedRider = new Map();
 
         const content = UI.el('div', {});
         const ordersBtn = UI.el('button', {}, Icon.of('receipt', 15), 'Orders');
@@ -189,19 +216,19 @@ App.register('/kitchen', {
                         if (!candidates.length) {
                             foot.push(UI.el('span', { class: 'muted' }, 'No free delivery man right now'));
                         } else {
-                            const pick = UI.el('select', {},
-                                ...candidates.map(r => UI.el('option', { value: r.id },
-                                    (r.displayName || r.id.slice(0, 8) + '…') + ' · ' + r.slotsRemainingToday + ' slot(s) left')));
+                            const pick = riderSelect(delivery.id, candidates, pickedRider);
                             foot.push(pick, UI.el('button', {
                                 class: 'btn-ok btn-small',
                                 onclick: async () => {
                                     try {
+                                        const riderId = pickedRider.get(delivery.id) || pick.value;
                                         await API.call(`/deliveries/${delivery.id}/assign`, {
-                                            method: 'POST', body: { riderId: pick.value }
+                                            method: 'POST', body: { riderId }
                                         });
-                                        const rider = candidates.find(r => r.id === pick.value);
+                                        const rider = candidates.find(r => r.id === riderId);
                                         UI.toast('Handed over to ' + (rider ? rider.displayName || 'the rider' : 'the rider')
                                             + ' - on the way', 'ok');
+                                        pickedRider.delete(delivery.id);
                                         await refresh();
                                     } catch (err) { UI.error(err); }
                                 }
@@ -332,17 +359,17 @@ App.register('/kitchen', {
                     if (!candidates.length) {
                         controls.push(UI.el('span', { class: 'muted' }, 'No free delivery man right now'));
                     } else {
-                        const pick = UI.el('select', {},
-                            ...candidates.map(r => UI.el('option', { value: r.id },
-                                (r.displayName || r.id.slice(0, 8) + '…') + ' · ' + r.slotsRemainingToday + ' slot(s) left')));
+                        const pick = riderSelect(d.id, candidates, pickedRider);
                         controls.push(pick, UI.el('button', {
                             class: 'btn-ok btn-small',
                             onclick: async () => {
                                 try {
+                                    const riderId = pickedRider.get(d.id) || pick.value;
                                     await API.call(`/deliveries/${d.id}/assign`, {
-                                        method: 'POST', body: { riderId: pick.value }
+                                        method: 'POST', body: { riderId }
                                     });
                                     UI.toast('Delivery man assigned - on the way', 'ok');
+                                    pickedRider.delete(d.id);
                                     await refresh();
                                 } catch (err) { UI.error(err); }
                             }

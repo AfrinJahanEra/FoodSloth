@@ -13,7 +13,5 @@ public class Address {
     private String street;
     private String city;
     private String area;
-    private double latitude;
-    private double longitude;
     private boolean defaultAddress;
 }

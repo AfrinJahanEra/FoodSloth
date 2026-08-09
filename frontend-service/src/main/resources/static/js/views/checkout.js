@@ -20,7 +20,7 @@ App.register('/checkout', {
                 address.append(UI.el('option', {
                     value: a.id,
                     selected: a.defaultAddress ? 'selected' : null
-                }, `${a.label || 'Address'} - ${a.street}, ${a.area || ''} ${a.city || ''}`));
+                }, `${a.label || 'Address'} - ${UI.address(a)}`));
             }
             if (!addresses.length) {
                 address.append(UI.el('option', { value: '' }, 'No saved addresses'));
@@ -43,14 +43,11 @@ App.register('/checkout', {
             const aStreet = UI.el('input', { type: 'text', placeholder: 'Street / house' });
             const aArea = UI.el('input', { type: 'text', placeholder: 'Area' });
             const aCity = UI.el('input', { type: 'text', placeholder: 'City' });
-            const aLat = UI.el('input', { type: 'number', step: '0.0001', placeholder: 'Latitude (e.g. 23.8103)' });
-            const aLng = UI.el('input', { type: 'number', step: '0.0001', placeholder: 'Longitude (e.g. 90.4125)' });
             const aDefault = UI.el('input', { type: 'checkbox' }); aDefault.checked = !addresses.length;
             const addressForm = UI.el('div', { style: 'display:none' },
                 UI.el('h3', {}, 'New delivery address'),
                 UI.el('div', { class: 'row' }, UI.el('div', {}, aLabel), UI.el('div', {}, aStreet)),
                 UI.el('div', { class: 'row' }, UI.el('div', {}, aArea), UI.el('div', {}, aCity)),
-                UI.el('div', { class: 'row' }, UI.el('div', {}, aLat), UI.el('div', {}, aLng)),
                 UI.el('div', { class: 'line-item' }, UI.el('span', {}, 'Set as default address'), aDefault),
                 UI.el('div', { class: 'form-actions' },
                     UI.el('button', {
@@ -61,7 +58,6 @@ App.register('/checkout', {
                                     body: {
                                         label: aLabel.value.trim(), street: aStreet.value.trim(),
                                         area: aArea.value.trim(), city: aCity.value.trim(),
-                                        latitude: parseFloat(aLat.value) || 0, longitude: parseFloat(aLng.value) || 0,
                                         defaultAddress: aDefault.checked
                                     }
                                 });
@@ -89,9 +85,7 @@ App.register('/checkout', {
                     try {
                         const res = await API.call(`/carts/${Auth.userId}/checkout`, {
                             body: {
-                                deliveryAddress: `${chosen.street}, ${chosen.area || ''} ${chosen.city || ''}`.trim(),
-                                deliveryLatitude: chosen.latitude,
-                                deliveryLongitude: chosen.longitude,
+                                deliveryAddress: UI.address(chosen),
                                 contactPhone: Auth.user?.phone || null,
                                 paymentMethod: paymentMethod.value,
                                 note: note.value.trim() || null

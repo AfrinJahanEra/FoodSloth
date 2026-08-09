@@ -53,6 +53,12 @@ const UI = {
         return new Date(iso).toLocaleString();
     },
 
+    /** A saved address as one readable line: "street, area, city" - skips whichever parts are blank. */
+    address(a) {
+        if (!a) return '-';
+        return [a.street, a.area, a.city].filter(part => part && part.trim()).join(', ') || '-';
+    },
+
     /** Renders into #view, clearing whatever was there. */
     render(...nodes) {
         const view = document.getElementById('view');

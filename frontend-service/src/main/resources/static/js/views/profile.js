@@ -87,15 +87,13 @@ App.register('/profile', {
         const street = UI.el('input', { type: 'text', placeholder: 'Street / house' });
         const area = UI.el('input', { type: 'text', placeholder: 'Area' });
         const city = UI.el('input', { type: 'text', placeholder: 'City' });
-        const lat = UI.el('input', { type: 'number', step: '0.0001', placeholder: 'Latitude (e.g. 23.8103)' });
-        const lng = UI.el('input', { type: 'number', step: '0.0001', placeholder: 'Longitude (e.g. 90.4125)' });
         const isDefault = UI.el('input', { type: 'checkbox' });
         let editingId = null;
 
         const clearForm = () => {
             editingId = null;
             formTitle.replaceChildren('Add address');
-            label.value = street.value = area.value = city.value = lat.value = lng.value = '';
+            label.value = street.value = area.value = city.value = '';
             isDefault.checked = false;
         };
 
@@ -108,8 +106,7 @@ App.register('/profile', {
                 addressesCard.append(UI.el('div', { class: 'line-item' },
                     UI.el('div', {},
                         UI.el('b', {}, (a.label || 'Address') + (a.defaultAddress ? ' (default)' : '')),
-                        UI.el('div', { class: 'muted' },
-                            `${a.street}, ${a.area || ''} ${a.city || ''} · ${a.latitude}, ${a.longitude}`)),
+                        UI.el('div', { class: 'muted' }, UI.address(a))),
                     UI.el('div', { style: 'display:flex;gap:8px' },
                         a.defaultAddress ? null : UI.el('button', {
                             class: 'btn-ghost btn-small',
@@ -127,7 +124,6 @@ App.register('/profile', {
                                 formTitle.replaceChildren('Edit address');
                                 label.value = a.label || ''; street.value = a.street || '';
                                 area.value = a.area || ''; city.value = a.city || '';
-                                lat.value = a.latitude; lng.value = a.longitude;
                                 isDefault.checked = !!a.defaultAddress;
                             }
                         }, 'Edit'),
@@ -147,7 +143,6 @@ App.register('/profile', {
                 formTitle,
                 UI.el('div', { class: 'row' }, UI.el('div', {}, label), UI.el('div', {}, street)),
                 UI.el('div', { class: 'row' }, UI.el('div', {}, area), UI.el('div', {}, city)),
-                UI.el('div', { class: 'row' }, UI.el('div', {}, lat), UI.el('div', {}, lng)),
                 UI.el('div', { class: 'line-item' }, UI.el('span', {}, 'Set as default address'), isDefault),
                 UI.el('div', { class: 'form-actions' },
                     UI.el('button', {
@@ -155,7 +150,6 @@ App.register('/profile', {
                             const body = {
                                 label: label.value.trim(), street: street.value.trim(),
                                 area: area.value.trim(), city: city.value.trim(),
-                                latitude: parseFloat(lat.value) || 0, longitude: parseFloat(lng.value) || 0,
                                 defaultAddress: isDefault.checked
                             };
                             try {

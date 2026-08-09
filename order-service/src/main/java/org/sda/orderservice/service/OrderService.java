@@ -28,9 +28,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.EnumSet;
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -41,8 +39,11 @@ import java.util.UUID;
  *   <li>{@code payment.succeeded} confirms it, {@code payment.failed} fails it</li>
  *   <li>{@code restaurant.order-accepted/rejected} moves it to PREPARING or REJECTED</li>
  *   <li>{@code delivery.started/completed} moves it to OUT_FOR_DELIVERY and DELIVERED</li>
- *   <li>the customer can cancel while it is still early</li>
  * </ul>
+ *
+ * <p>Orders cannot be cancelled once placed - not by the customer, not by the admin. The only
+ * ways an order stops moving forward are the restaurant rejecting it or the checkout pricing
+ * failing, both of which raise {@code order.cancelled} for Payment/Delivery/Notification.
  *
  * <p>The order id is the UUID Cart Service minted at checkout, so the client can poll
  * {@code GET /orders/{orderId}} from the very first moment.
@@ -52,8 +53,6 @@ public class OrderService {
 
     private static final Logger log = LoggerFactory.getLogger(OrderService.class);
 
-    private static final Set<OrderStatus> CANCELLABLE_STATUSES =
-            EnumSet.of(OrderStatus.PENDING_PAYMENT, OrderStatus.CONFIRMED);
     private static final String ADMIN_ROLE = "ADMIN";
 
     private final OrderRepository orderRepository;
@@ -199,21 +198,6 @@ public class OrderService {
         return orderRepository.findByUserIdOrderByCreatedAtDesc(targetUserId).stream()
                 .map(this::toResponse)
                 .toList();
-    }
-
-    public OrderResponse cancelOrder(String userId, String role, String id) {
-        Order order = findOrderOrThrow(id);
-        requireOwnerOrAdmin(userId, role, order);
-        if (!CANCELLABLE_STATUSES.contains(order.getStatus())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "Order cannot be cancelled once the restaurant has accepted it or after delivery");
-        }
-
-        order.setStatus(OrderStatus.CANCELLED);
-        order.setUpdatedAt(Instant.now());
-        Order saved = orderRepository.save(order);
-        eventPublisher.publishOrderCancelled(saved, "Cancelled by the customer");
-        return toResponse(saved);
     }
 
     /**

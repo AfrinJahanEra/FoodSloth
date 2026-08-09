@@ -78,8 +78,8 @@ public class DeliveryService {
         delivery.setOrderNo(event.orderNo());
         delivery.setUserId(event.userId());
         delivery.setRestaurantId(event.restaurantId());
-        delivery.setPickup(new GeoPoint(event.pickupLatitude(), event.pickupLongitude()));
-        delivery.setDrop(new GeoPoint(event.dropLatitude(), event.dropLongitude()));
+        delivery.setPickup(new GeoPoint(orZero(event.pickupLatitude()), orZero(event.pickupLongitude())));
+        delivery.setDrop(new GeoPoint(orZero(event.dropLatitude()), orZero(event.dropLongitude())));
         delivery.setDropAddressLabel(event.dropAddressLabel());
         delivery.setCustomerPhone(event.customerPhone());
         delivery.setStatus(DeliveryStatus.PENDING_ASSIGNMENT);
@@ -354,5 +354,10 @@ public class DeliveryService {
 
     private double round(double km) {
         return Math.round(km * 100) / 100.0;
+    }
+
+    /** The customer's address may carry no coordinates; GeoPoint's isReal() already treats (0,0) as "no fix". */
+    private double orZero(Double value) {
+        return value == null ? 0.0 : value;
     }
 }

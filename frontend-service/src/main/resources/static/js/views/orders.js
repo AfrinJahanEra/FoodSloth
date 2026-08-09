@@ -86,18 +86,6 @@ App.register('/orders', {
                         }
                     }, order.status === 'PAYMENT_FAILED' ? 'Retry payment' : 'Pay now'));
                 }
-                if (['PENDING_PAYMENT', 'CONFIRMED'].includes(order.status)) {
-                    actions.push(UI.el('button', {
-                        class: 'btn-danger',
-                        onclick: async () => {
-                            try {
-                                await API.call(`/orders/${order.id}/cancel`, { method: 'PATCH', body: {} });
-                                UI.toast('Order cancelled', 'ok');
-                                await drawDetail();
-                            } catch (err) { UI.error(err); }
-                        }
-                    }, 'Cancel'));
-                }
                 if (['DELIVERED', 'CANCELLED', 'REJECTED', 'PAYMENT_FAILED'].includes(order.status)) {
                     actions.push(UI.el('button', {
                         class: 'btn-ghost',

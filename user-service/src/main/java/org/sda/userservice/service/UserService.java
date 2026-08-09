@@ -182,8 +182,6 @@ public class UserService {
         existing.setStreet(updated.getStreet());
         existing.setCity(updated.getCity());
         existing.setArea(updated.getArea());
-        existing.setLatitude(updated.getLatitude());
-        existing.setLongitude(updated.getLongitude());
         return saveAndSanitize(user);
     }
 

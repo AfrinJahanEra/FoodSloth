@@ -5,7 +5,6 @@ import org.sda.orderservice.service.OrderService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -50,13 +49,6 @@ public class OrderController {
                                            @RequestHeader(value = "X-User-Role", required = false) String role) {
         String caller = requireAuthenticated(userId);
         return orderService.getOrdersForUser(caller, role, caller);
-    }
-
-    @PatchMapping("/{id}/cancel")
-    public OrderResponse cancelOrder(@RequestHeader(value = "X-User-Id", required = false) String userId,
-                                     @RequestHeader(value = "X-User-Role", required = false) String role,
-                                     @PathVariable String id) {
-        return orderService.cancelOrder(requireAuthenticated(userId), role, id);
     }
 
     /**

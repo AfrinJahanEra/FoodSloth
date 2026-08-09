@@ -55,13 +55,11 @@ public record UserResponse(
             String street,
             String city,
             String area,
-            double latitude,
-            double longitude,
             boolean defaultAddress) {
 
         public static AddressView from(org.sda.userservice.entity.Address address) {
             return new AddressView(address.getId(), address.getLabel(), address.getStreet(), address.getCity(),
-                    address.getArea(), address.getLatitude(), address.getLongitude(), address.isDefaultAddress());
+                    address.getArea(), address.isDefaultAddress());
         }
     }
 }

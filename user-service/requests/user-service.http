@@ -79,9 +79,7 @@ Content-Type: application/json
   "label": "Home",
   "street": "12 Green Road",
   "city": "Dhaka",
-  "area": "Dhanmondi",
-  "latitude": 23.7461,
-  "longitude": 90.3742
+  "area": "Dhanmondi"
 }
 
 ### update an address (replace {addressId})
@@ -93,9 +91,7 @@ Content-Type: application/json
   "label": "Office",
   "street": "45 Gulshan Ave",
   "city": "Dhaka",
-  "area": "Gulshan",
-  "latitude": 23.7925,
-  "longitude": 90.4078
+  "area": "Gulshan"
 }
 
 ### set an address as default (replace {addressId})

@@ -13,10 +13,10 @@ public record OrderReadyEvent(
         Long orderNo,
         String userId,
         String restaurantId,
-        double pickupLatitude,
-        double pickupLongitude,
-        double dropLatitude,
-        double dropLongitude,
+        Double pickupLatitude,
+        Double pickupLongitude,
+        Double dropLatitude,
+        Double dropLongitude,
         String dropAddressLabel,
         String customerPhone
 ) {

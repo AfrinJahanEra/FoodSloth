@@ -11,11 +11,9 @@ public record AddressRequest(
         String street,
         String city,
         String area,
-        double latitude,
-        double longitude,
         boolean defaultAddress) {
 
     public Address toEntity() {
-        return new Address(null, label, street, city, area, latitude, longitude, defaultAddress);
+        return new Address(null, label, street, city, area, defaultAddress);
     }
 }
