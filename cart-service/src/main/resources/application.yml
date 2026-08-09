@@ -6,14 +6,17 @@ spring:
     name: cart-service
   rabbitmq:
     addresses: localhost:5672
+    listener:
+      simple:
+        # A message this service cannot process is dropped instead of being requeued forever.
+        default-requeue-rejected: false
+        retry:
+          enabled: true
+          max-attempts: 3
 
   mongodb:
     uri: mongodb+srv://era97:era97@cluster0.rali5he.mongodb.net/?appName=Cluster0
     database: food_cart_db
-
-cart:
-  tax-rate: 0.05
-  delivery-fee: 60.0
 
 management:
   health:

@@ -1,9 +1,13 @@
 package org.sda.notificationservice.dto.event;
 
-// Mirrors the payload published by Order Service on order.cancelled.
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
+/** Consumed from {@code order.cancelled}. */
+@JsonIgnoreProperties(ignoreUnknown = true)
 public record OrderCancelledEvent(
         String orderId,
         String userId,
-        String restaurantId
+        String restaurantId,
+        String reason
 ) {
 }

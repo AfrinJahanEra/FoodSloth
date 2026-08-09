@@ -1,5 +1,6 @@
 package org.sda.userservice.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -29,6 +30,7 @@ public class User {
     private String phone;
 
     @Field
+    @JsonIgnore // BCrypt hash must never leave this service in a JSON response
     private String password;
 
     @Field

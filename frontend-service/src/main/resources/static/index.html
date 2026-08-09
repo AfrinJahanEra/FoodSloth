@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FoodSloth</title>
+    <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<header class="topbar">
+    <a class="brand" href="#/">FoodSloth<span class="brand-dot">.</span></a>
+    <nav id="nav"></nav>
+    <div class="user-box" id="user-box"></div>
+</header>
+
+<main id="view" aria-live="polite"></main>
+
+<div id="toasts" aria-live="assertive"></div>
+
+<!-- Core modules -->
+<script src="/js/api.js"></script>
+<script src="/js/auth.js"></script>
+<script src="/js/ui.js"></script>
+
+<!-- One file per screen; each registers itself with App.views -->
+<script src="/js/app.js"></script>
+<script src="/js/views/login.js"></script>
+<script src="/js/views/signup.js"></script>
+<script src="/js/views/menu.js"></script>
+<script src="/js/views/cart.js"></script>
+<script src="/js/views/checkout.js"></script>
+<script src="/js/views/orders.js"></script>
+<script src="/js/views/track.js"></script>
+<script src="/js/views/notifications.js"></script>
+<script src="/js/views/kitchen.js"></script>
+<script src="/js/views/rider.js"></script>
+</body>
+</html>

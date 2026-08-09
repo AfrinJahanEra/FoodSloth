@@ -15,7 +15,8 @@ management:
       enabled: false
 
 jwt:
-  secret: food-delivery-user-service-jwt-secret-key-change-me-2026
+  # Overridable via JWT_SECRET env var (see .env.example); must match api-gateway, which verifies the tokens.
+  secret: ${JWT_SECRET:food-delivery-user-service-jwt-secret-key-change-me-2026}
   expiration-ms: 86400000
 
 eureka:

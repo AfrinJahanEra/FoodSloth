@@ -4,6 +4,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
 
@@ -12,6 +13,14 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * The order document. Its id <em>is</em> the orderId that Cart Service minted at checkout, which is
+ * the correlation key every event about this order carries - so the client can poll
+ * {@code GET /orders/{orderId}} from the moment checkout returns.
+ *
+ * <p>Everything here comes from the {@code restaurant.order-priced} snapshot: this service never
+ * prices anything itself and holds no menu data.
+ */
 @Document(collection = "orders")
 @Data
 @NoArgsConstructor
@@ -21,19 +30,14 @@ public class Order {
     private String id;
 
     @Field
+    @Indexed
     private String userId;
 
     @Field
     private String restaurantId;
 
     @Field
-    private String deliveryAddressId;
-
-    @Field
-    private DeliveryType deliveryType;
-
-    @Field
-    private PaymentMethod paymentMethod;
+    private String restaurantName;
 
     @Field
     private List<OrderItem> items = new ArrayList<>();
@@ -49,6 +53,26 @@ public class Order {
 
     @Field
     private BigDecimal grandTotal;
+
+    @Field
+    private String currency;
+
+    @Field
+    private PaymentMethod paymentMethod;
+
+    // ---- Drop-off, snapshotted at checkout so a later address edit cannot move a live order ----
+
+    @Field
+    private String deliveryAddress;
+
+    @Field
+    private Double deliveryLatitude;
+
+    @Field
+    private Double deliveryLongitude;
+
+    @Field
+    private String note;
 
     @Field
     private OrderStatus status;

@@ -5,9 +5,27 @@ spring:
   application:
     name: restaurant-service
 
+  rabbitmq:
+    addresses: localhost:5672
+    listener:
+      simple:
+        # A message this service cannot process is dropped instead of being requeued forever.
+        default-requeue-rejected: false
+        retry:
+          enabled: true
+          max-attempts: 3
+
   mongodb:
     uri: mongodb+srv://era97:era97@cluster0.rali5he.mongodb.net/?appName=Cluster0
     database: food_restaurant_db
+
+# Pricing rules. This service is the only place a price is decided, so the fee and tax live here
+# rather than being hard-coded or duplicated in the cart.
+restaurant:
+  delivery-fee: 60.0
+  # 5% - expressed as a fraction of the items total.
+  tax-rate: 0.05
+  currency: BDT
 
 management:
   health:

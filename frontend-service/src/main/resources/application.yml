@@ -1,0 +1,9 @@
+server:
+  port: 9008
+
+spring:
+  application:
+    name: frontend-service
+
+# The SPA reads this nowhere - the gateway base URL is configured once in static/js/api.js.
+# Nothing else to configure: this service holds no connections of its own.

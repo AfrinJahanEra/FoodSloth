@@ -34,3 +34,4 @@ build/
 
 ### Local secrets (never commit) ###
 secrets.yml
+.env

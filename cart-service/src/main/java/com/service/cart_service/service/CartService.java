@@ -1,54 +1,43 @@
 package com.service.cart_service.service;
 
-import com.service.cart_service.Constants;
+import com.service.cart_service.dto.CheckoutRequest;
+import com.service.cart_service.dto.event.CartCheckedOutEvent;
 import com.service.cart_service.entity.Cart;
 import com.service.cart_service.entity.CartItem;
-import com.service.cart_service.event.CartCheckedOutEvent;
+import com.service.cart_service.messaging.Constants;
 import com.service.cart_service.repository.CartRepository;
 import org.springframework.amqp.core.AmqpTemplate;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
-import org.springframework.beans.factory.annotation.Qualifier;
 
 import java.time.Instant;
+import java.util.UUID;
 
 /**
- * Cart is treated as a transient shopping session: one active cart per user.
- * There's a single restaurant for the whole app, so there's no notion of
- * "items from different restaurants" to reconcile. Coupons are only "held"
- * here (stored on the cart) - actual validation/discount application happens
- * in Order Service at checkout, per the project's service boundaries.
- * <p>
- * Item name/price/availability are never trusted from the client - they're
- * fetched live from Restaurant Service (via RestaurantClient) on every add
- * and quantity update. Cart Service keeps no local copy of the menu.
- * <p>
- * NOTE: userId is currently taken directly from the URL path rather than a
- * JWT, since only user-service issues/validates tokens so far. Swap
- * getCart/etc. to derive userId from an Authorization header once a shared
- * auth mechanism exists across services.
+ * Cart is a transient shopping session: one active cart per user, holding nothing but what the
+ * customer picked (item id + quantity).
+ *
+ * <p>There is deliberately no price lookup and no menu copy here. Names, prices and availability
+ * belong to Restaurant Service; asking for them would couple the two services again. The cart
+ * ships the item ids at checkout and Restaurant Service prices them fresh, so a stale price can
+ * never reach a customer's order.
+ *
+ * <p>Checkout mints the {@code orderId} (a UUID) and publishes {@code cart.checked-out}. From that
+ * moment the cart's job is done: pricing, payment and fulfilment are all downstream events that
+ * this service neither waits for nor tracks. The client gets the id back immediately (HTTP 202)
+ * and polls {@code GET /orders/{orderId}} on Order Service.
  */
 @Service
 public class CartService {
 
-    @Autowired
-    private CartRepository cartRepository;
+    private final CartRepository cartRepository;
+    private final AmqpTemplate amqpTemplate;
 
-    @Autowired
-    private RestaurantClient restaurantClient;
-
-    @Autowired
-    @Qualifier("template")
-    private AmqpTemplate amqpTemplate;
-
-    @Value("${cart.tax-rate}")
-    private double taxRate;
-
-    @Value("${cart.delivery-fee}")
-    private double deliveryFee;
+    public CartService(CartRepository cartRepository, AmqpTemplate amqpTemplate) {
+        this.cartRepository = cartRepository;
+        this.amqpTemplate = amqpTemplate;
+    }
 
     public Cart getCart(String userId) {
         return cartRepository.findByUserId(userId).orElseGet(() -> emptyCart(userId));
@@ -62,13 +51,7 @@ public class CartService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "quantity must be positive");
         }
 
-        MenuItemResponse menuItem = restaurantClient.getMenuItem(itemId);
-        if (!menuItem.available()) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Item is currently unavailable: " + itemId);
-        }
-
         Cart cart = cartRepository.findByUserId(userId).orElseGet(() -> emptyCart(userId));
-
         CartItem existing = cart.getItems().stream()
                 .filter(i -> i.getItemId().equals(itemId))
                 .findFirst()
@@ -76,20 +59,10 @@ public class CartService {
 
         if (existing != null) {
             existing.setQuantity(existing.getQuantity() + quantity);
-            existing.setName(menuItem.name());
-            existing.setPrice(menuItem.price());
-            existing.setPhoto(menuItem.photo());
         } else {
-            CartItem item = new CartItem();
-            item.setItemId(itemId);
-            item.setName(menuItem.name());
-            item.setPrice(menuItem.price());
-            item.setPhoto(menuItem.photo());
-            item.setQuantity(quantity);
-            cart.getItems().add(item);
+            cart.getItems().add(new CartItem(itemId, quantity));
         }
-
-        return recalculateAndSave(cart);
+        return save(cart);
     }
 
     public Cart updateItemQuantity(String userId, String itemId, int quantity) {
@@ -102,18 +75,9 @@ public class CartService {
         if (quantity <= 0) {
             cart.getItems().remove(item);
         } else {
-            MenuItemResponse menuItem = restaurantClient.getMenuItem(itemId);
-            if (!menuItem.available()) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT, "Item is currently unavailable: " + itemId);
-            }
             item.setQuantity(quantity);
-            item.setName(menuItem.name());
-            item.setPrice(menuItem.price());
-            item.setPhoto(menuItem.photo());
         }
-
-        clearCouponIfEmpty(cart);
-        return recalculateAndSave(cart);
+        return save(cart);
     }
 
     public Cart removeItem(String userId, String itemId) {
@@ -122,27 +86,7 @@ public class CartService {
         if (!removed) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Item not found in cart");
         }
-
-        clearCouponIfEmpty(cart);
-        return recalculateAndSave(cart);
-    }
-
-    public Cart applyCoupon(String userId, String couponCode) {
-        if (couponCode == null || couponCode.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "couponCode is required");
-        }
-        Cart cart = requireCart(userId);
-        if (cart.getItems().isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot apply a coupon to an empty cart");
-        }
-        cart.setCouponCode(couponCode);
-        return recalculateAndSave(cart);
-    }
-
-    public Cart removeCoupon(String userId) {
-        Cart cart = requireCart(userId);
-        cart.setCouponCode(null);
-        return recalculateAndSave(cart);
+        return save(cart);
     }
 
     public void clearCart(String userId) {
@@ -151,47 +95,50 @@ public class CartService {
             return;
         }
         cart.getItems().clear();
-        cart.setCouponCode(null);
-        recalculateAndSave(cart);
+        save(cart);
     }
 
     /**
-     * Finalizes the cart: publishes a CartCheckedOut event (via the existing
-     * exchange/routing key) for Order Service to pick up, then empties the
-     * cart. Cart Service's job ends here - it doesn't wait for or track what
-     * Order Service does with the event.
+     * Publishes {@code cart.checked-out} with a freshly minted orderId and empties the cart.
+     *
+     * <p>Publishing happens before clearing: if the broker were unreachable the exception stops the
+     * flow with the cart intact, so the customer can simply retry instead of losing their basket.
      */
-    public CartCheckedOutEvent checkout(String userId) {
+    public String checkout(String userId, CheckoutRequest request) {
+        if (request.deliveryAddress() == null || request.deliveryAddress().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "deliveryAddress is required");
+        }
+
         Cart cart = requireCart(userId);
         if (cart.getItems().isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot checkout an empty cart");
         }
 
+        String orderId = UUID.randomUUID().toString();
+
         CartCheckedOutEvent event = new CartCheckedOutEvent(
-                "CartCheckedOut",
-                cart.getId(),
-                cart.getUserId(),
-                cart.getItems(),
-                cart.getCouponCode(),
-                cart.getSubtotal(),
-                cart.getTax(),
-                cart.getDeliveryFee(),
-                cart.getTotal(),
-                Instant.now()
-        );
+                orderId,
+                userId,
+                cart.getItems().stream()
+                        .map(i -> new CartCheckedOutEvent.CheckoutItem(i.getItemId(), i.getQuantity()))
+                        .toList(),
+                request.deliveryAddress(),
+                request.deliveryLatitude(),
+                request.deliveryLongitude(),
+                request.paymentMethod(),
+                request.note());
 
-        amqpTemplate.convertAndSend(Constants.EXCHANGE, Constants.ROUTING_KEY, event);
+        amqpTemplate.convertAndSend(Constants.EXCHANGE, Constants.RK_CART_CHECKED_OUT, event);
 
-        clearCart(userId);
+        cart.getItems().clear();
+        save(cart);
 
-        return event;
+        return orderId;
     }
 
-    private void clearCouponIfEmpty(Cart cart) {
-        if (cart.getItems().isEmpty()) {
-            cart.setCouponCode(null);
-        }
-    }
+    // ------------------------------------------------------------------
+    // Helpers
+    // ------------------------------------------------------------------
 
     private Cart requireCart(String userId) {
         return cartRepository.findByUserId(userId)
@@ -204,30 +151,8 @@ public class CartService {
         return cart;
     }
 
-    private Cart recalculateAndSave(Cart cart) {
-        double subtotal = 0.0;
-        for (CartItem item : cart.getItems()) {
-            double lineTotal = round(item.getPrice() * item.getQuantity());
-            item.setLineTotal(lineTotal);
-            subtotal += lineTotal;
-        }
-        subtotal = round(subtotal);
-
-        boolean empty = cart.getItems().isEmpty();
-        double tax = empty ? 0.0 : round(subtotal * taxRate);
-        double delivery = empty ? 0.0 : round(deliveryFee);
-        double total = round(subtotal + tax + delivery);
-
-        cart.setSubtotal(subtotal);
-        cart.setTax(tax);
-        cart.setDeliveryFee(delivery);
-        cart.setTotal(total);
+    private Cart save(Cart cart) {
         cart.setUpdatedAt(Instant.now());
-
         return cartRepository.save(cart);
-    }
-
-    private double round(double value) {
-        return Math.round(value * 100.0) / 100.0;
     }
 }
