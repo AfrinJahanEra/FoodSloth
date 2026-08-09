@@ -1,6 +1,7 @@
 package org.listener;
 
 import org.dto.event.OrderCancelledEvent;
+import org.dto.event.DeliveryCompletedEvent;
 import org.dto.event.PaymentRequestedEvent;
 import org.messaging.Constants;
 import org.service.PaymentService;
@@ -30,5 +31,10 @@ public class OrderEventListener {
     @RabbitListener(queues = Constants.QUEUE_ORDER_CANCELLED)
     public void onOrderCancelled(OrderCancelledEvent event) {
         paymentService.onOrderCancelled(event.orderId());
+    }
+
+    @RabbitListener(queues = Constants.QUEUE_DELIVERY_COMPLETED)
+    public void onDeliveryCompleted(DeliveryCompletedEvent event) {
+        paymentService.onDeliveryCompleted(event.orderId());
     }
 }

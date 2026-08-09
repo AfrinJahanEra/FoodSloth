@@ -90,6 +90,15 @@ public class RiderService {
         return riderRepository.save(rider);
     }
 
+    /** Live GPS push from the rider app; a sentinel fix clears the stored position. */
+    public Rider updateLocation(String riderId, double latitude, double longitude) {
+        Rider rider = require(riderId);
+        GeoPoint fix = new GeoPoint(latitude, longitude);
+        rider.setLocation(fix.isReal() ? fix : null);
+        rider.setLocationUpdatedAt(Instant.now());
+        return riderRepository.save(rider);
+    }
+
     /**
      * Nearest rider to {@code pickup} that is free, reachable and inside the assignment radius.
      * {@code excludedRiderIds} carries the riders who already declined this job.

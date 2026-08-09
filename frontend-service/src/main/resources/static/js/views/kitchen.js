@@ -65,7 +65,7 @@ function initials(name) {
 
 /** Friendly order label: the sequential #number when the server knows it, else a UUID prefix. */
 function orderRef(orderNo, id) {
-    return orderNo ? 'Order #' + orderNo : 'Order ' + String(id || '').slice(0, 8) + '…';
+    return orderNo ? 'Order #' + orderNo : 'Order';
 }
 
 App.register('/kitchen', {
@@ -191,7 +191,7 @@ App.register('/kitchen', {
                         } else {
                             const pick = UI.el('select', {},
                                 ...candidates.map(r => UI.el('option', { value: r.id },
-                                    (r.displayName || r.id.slice(0, 8) + '…') + ' · ' + r.slotsRemainingToday + ' slot(s) left')));
+                                    (r.displayName || r.phone || 'Rider') + (r.phone ? ' · ' + r.phone : '') + ' · ' + r.slotsRemainingToday + ' slot(s) left')));
                             foot.push(pick, UI.el('button', {
                                 class: 'btn-ok btn-small',
                                 onclick: async () => {
@@ -247,7 +247,8 @@ App.register('/kitchen', {
                         UI.el('span', { class: 'when' }, UI.time(t.createdAt))),
                     UI.el('div', { class: 'ticket-items' }, lines || 'no items'),
                     UI.el('div', { class: 'ticket-items' },
-                        UI.el('b', {}, UI.money(t.grandTotal, t.currency)) + ' · ' + (t.note || 'no note')),
+                        UI.el('b', {}, UI.money(t.grandTotal, t.currency)),
+                        UI.el('span', {}, ' · ' + (t.note || 'no note'))),
                     isOpen ? UI.el('div', { class: 'ticket-detail' }, ...detail) : null,
                     foot.length ? UI.el('div', { class: 'ticket-foot' }, ...foot) : null));
             }
@@ -295,7 +296,7 @@ App.register('/kitchen', {
                         UI.el('div', { class: 'rider-top' },
                             UI.el('div', { class: 'avatar' }, initials(r.displayName)),
                             UI.el('div', {},
-                                UI.el('b', {}, r.displayName || r.id.slice(0, 8) + '…'),
+                                UI.el('b', {}, r.displayName || r.phone || 'Rider'),
                                 UI.el('span', { class: 'muted' }, r.phone || 'no phone'))),
                         UI.el('div', {},
                             UI.el('div', { class: 'slot-bar' },
@@ -334,7 +335,7 @@ App.register('/kitchen', {
                     } else {
                         const pick = UI.el('select', {},
                             ...candidates.map(r => UI.el('option', { value: r.id },
-                                (r.displayName || r.id.slice(0, 8) + '…') + ' · ' + r.slotsRemainingToday + ' slot(s) left')));
+                                (r.displayName || r.phone || 'Rider') + (r.phone ? ' · ' + r.phone : '') + ' · ' + r.slotsRemainingToday + ' slot(s) left')));
                         controls.push(pick, UI.el('button', {
                             class: 'btn-ok btn-small',
                             onclick: async () => {

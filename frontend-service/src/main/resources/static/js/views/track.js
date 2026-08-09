@@ -15,7 +15,7 @@ App.register('/track', {
         const card = UI.el('div', { class: 'card' });
         const mapCard = UI.el('div', { class: 'card' }, UI.el('h2', {}, 'Live map'));
         const notesCard = UI.el('div', { class: 'card' }, UI.el('h2', {}, 'Order updates'));
-        const title = UI.el('h1', {}, 'Track order ' + orderId.slice(0, 8) + '…');
+        const title = UI.el('h1', {}, 'Track order');
         UI.render(
             UI.el('div', { class: 'page-head' },
                 UI.el('button', { class: 'btn-ghost btn-small', onclick: () => location.hash = '#/orders' }, '← Orders'),
@@ -27,10 +27,25 @@ App.register('/track', {
         let lastMapUrl = null;
 
         /** Route map: from the rider's live position (or the restaurant before
-         *  the first GPS fix) to the customer's area. Rebuilt only when it changes. */
+         *  the first GPS fix) to the customer's area. Rebuilt only when it changes.
+         *  Without a drop pin the rider's live position is shown on its own, so the
+         *  customer still sees the rider move in real time. */
         const drawMap = (track) => {
+            const r3 = (v) => Math.round(v * 1000) / 1000;
+            const riderLive = has(track.riderLatitude, track.riderLongitude);
+
             if (!has(track.dropLatitude, track.dropLongitude)) {
-                if (lastMapUrl !== 'none') {
+                if (riderLive) {
+                    const url = 'https://maps.google.com/maps?daddr='
+                        + r3(track.riderLatitude) + ',' + r3(track.riderLongitude) + '&output=embed';
+                    if (url === lastMapUrl) return;
+                    lastMapUrl = url;
+                    mapCard.replaceChildren(
+                        UI.el('h2', {}, 'Live map'),
+                        UI.el('iframe', { class: 'map-frame', src: url, loading: 'lazy', title: 'Rider live position map' }),
+                        UI.el('div', { class: 'map-legend muted' },
+                            UI.el('span', {}, 'The rider\u2019s live position - your address has no GPS pin, the rider will call if needed.')));
+                } else if (lastMapUrl !== 'none') {
                     lastMapUrl = 'none';
                     mapCard.replaceChildren(UI.el('h2', {}, 'Live map'),
                         UI.el('p', { class: 'muted' }, 'This address has no map coordinates - the rider will call you if needed.'));
@@ -38,8 +53,7 @@ App.register('/track', {
                 return;
             }
             const drop = track.dropLatitude + ',' + track.dropLongitude;
-            const r3 = (v) => Math.round(v * 1000) / 1000;
-            const from = has(track.riderLatitude, track.riderLongitude)
+            const from = riderLive
                 ? r3(track.riderLatitude) + ',' + r3(track.riderLongitude)
                 : track.pickupLatitude + ',' + track.pickupLongitude;
             const url = 'https://maps.google.com/maps?saddr=' + from + '&daddr=' + drop + '&output=embed';
@@ -50,7 +64,7 @@ App.register('/track', {
                 UI.el('iframe', { class: 'map-frame', src: url, loading: 'lazy', title: 'Delivery route map' }),
                 UI.el('div', { class: 'map-legend muted' },
                     UI.el('span', {}, 'Route: restaurant → ' + (track.dropAddressLabel || 'your address')),
-                    UI.el('span', {}, has(track.riderLatitude, track.riderLongitude)
+                    UI.el('span', {}, riderLive
                         ? 'Start point follows the rider\u2019s live GPS.'
                         : 'Rider GPS not live yet - showing the restaurant as start.')));
         };
@@ -79,7 +93,7 @@ App.register('/track', {
                     class: 'step' + (i <= doneIndex ? ' done' : '')
                 }, stepLabels[step])));
 
-            card.replaceChildren(
+            const cardKids = [
                 UI.el('div', { class: 'line-item' },
                     UI.el('b', {}, track.riderName || 'Looking for a rider...'),
                     UI.chip(status)),
@@ -93,12 +107,19 @@ App.register('/track', {
                         UI.el('div', { class: 'label' }, 'Remaining')),
                     UI.el('div', { class: 'stat' },
                         UI.el('div', { class: 'value' }, track.riderPhone || '—'),
-                        UI.el('div', { class: 'label' }, 'Rider phone'))),
-                UI.el('p', { class: 'muted' },
-                    'Delivering to: ' + (track.dropAddressLabel || '-') +
-                    ' · Last GPS fix: ' + UI.time(track.riderLocationUpdatedAt) +
-                    (has(track.riderLatitude, track.riderLongitude) ? ` at ${track.riderLatitude.toFixed(4)}, ${track.riderLongitude.toFixed(4)}` : ''))
-            );
+                        UI.el('div', { class: 'label' }, 'Rider phone')))
+            ];
+            if (!has(track.dropLatitude, track.dropLongitude)) {
+                cardKids.push(UI.el('p', { class: 'muted' },
+                    'Distance and ETA show as dashes because this address has no GPS pin - ' +
+                    'the map still follows the rider live. Pin the address (Profile → Edit → ' +
+                    '“Use my current location”) and future orders get full estimates.'));
+            }
+            cardKids.push(UI.el('p', { class: 'muted' },
+                'Delivering to: ' + (track.dropAddressLabel || '-') +
+                ' · Last GPS fix: ' + UI.time(track.riderLocationUpdatedAt) +
+                (has(track.riderLatitude, track.riderLongitude) ? ` at ${track.riderLatitude.toFixed(4)}, ${track.riderLongitude.toFixed(4)}` : '')));
+            card.replaceChildren(...cardKids);
 
             drawMap(track);
 

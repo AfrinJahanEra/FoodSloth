@@ -3,6 +3,7 @@ package org.sda.deliveryservice.controller;
 import org.sda.deliveryservice.dto.AssignRiderRequest;
 import org.sda.deliveryservice.dto.DeliveryResponse;
 import org.sda.deliveryservice.dto.GoOnlineRequest;
+import org.sda.deliveryservice.dto.LocationUpdateRequest;
 import org.sda.deliveryservice.dto.RiderResponse;
 import org.sda.deliveryservice.dto.TrackingResponse;
 import org.sda.deliveryservice.entity.Delivery;
@@ -72,6 +73,20 @@ public class DeliveryController {
     public RiderResponse getMyRiderProfile(@RequestHeader(value = "X-User-Id", required = false) String userId,
                                    @RequestHeader(value = "X-User-Role", required = false) String role) {
         return riderService.toResponse(riderService.require(requireRider(userId, role)));
+    }
+
+    /**
+     * Live GPS push from the rider app. The fix is mirrored onto the open job so the rider's own
+     * map and the customer's tracking page both follow the ride in real time.
+     */
+    @PostMapping("/riders/me/location")
+    public RiderResponse updateMyLocation(@RequestHeader(value = "X-User-Id", required = false) String userId,
+                                  @RequestHeader(value = "X-User-Role", required = false) String role,
+                                  @RequestBody LocationUpdateRequest request) {
+        String riderId = requireRider(userId, role);
+        requireCoordinates(request.latitude(), request.longitude());
+        deliveryService.updateRiderLocation(riderId, request.latitude(), request.longitude());
+        return riderService.toResponse(riderService.require(riderId));
     }
 
     // ------------------------------------------------------------------

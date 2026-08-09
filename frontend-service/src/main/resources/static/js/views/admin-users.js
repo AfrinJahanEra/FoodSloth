@@ -89,7 +89,7 @@ App.register('/admin-users', {
                     UI.el('td', { class: 'right' }, canDelete ? UI.el('button', {
                         class: 'btn-danger btn-small',
                         onclick: async () => {
-                            if (!confirm('Delete ' + (u.code ? u.code + ' · ' : '') + (u.name || u.id) + '?')) return;
+                            if (!confirm('Delete ' + (u.code ? u.code + ' · ' : '') + (u.name || 'this user') + '?')) return;
                             try {
                                 await API.call('/users/' + u.id, { method: 'DELETE' });
                                 UI.toast('User deleted', 'ok');

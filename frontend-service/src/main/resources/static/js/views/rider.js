@@ -32,17 +32,17 @@ App.register('/rider', {
         const getPosition = () => new Promise((resolve, reject) => {
             if (!navigator.geolocation) return reject(new Error('Browser geolocation unavailable'));
             navigator.geolocation.getCurrentPosition(
-                pos => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+                pos => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude, accuracy: pos.coords.accuracy }),
                 err => reject(new Error('Location denied: ' + err.message)),
-                { enableHighAccuracy: true, timeout: 8000 });
+                { enableHighAccuracy: true, maximumAge: 0, timeout: 8000 });
         });
 
         const go = (p) => { page = p; lastJobSig = null; draw().catch(UI.error); };
 
-        /** Friendly order label: the sequential #number when known, else a UUID prefix. */
+        /** Friendly order label: the sequential #number when known; never a database id. */
         const orderRef = (job) => job.orderNo
             ? 'Order #' + job.orderNo
-            : 'Order ' + String(job.orderId || '').slice(0, 8) + '…';
+            : 'Order';
 
         /** Renders whatever the server just returned, so actions never wait on the next poll. */
         const renderJob = (job) => { lastJobSig = null; return drawJob(job); };
@@ -63,35 +63,49 @@ App.register('/rider', {
                 }, JOB_LABELS[step])));
         };
 
-        /** Route map: always restaurant first, customer second - the same two addresses
-         *  the rider rides between, whatever the job status. */
+        /** Live route map: from the rider's real-time position to the next stop - the
+         *  restaurant until the food is picked up, the customer afterwards. When no live
+         *  fix has arrived yet the restaurant stands in as the start point. */
         const mapOf = (job) => {
             const box = UI.el('div', {});
-            const start = hasCoords(job.pickup) ? job.pickup : null;
-            // The customer pin if it exists, otherwise the nearest known point (the restaurant).
-            const end = hasCoords(job.drop) ? job.drop : start;
+            const live = hasCoords(job.riderLocation) ? job.riderLocation : null;
+            const pickedUp = job.status === 'PICKED_UP' || job.status === 'DELIVERED';
+            const dropText = (job.dropAddressLabel || '').trim();
 
-            if (!end) {
+            // Destination: the restaurant on the first leg, the customer after pickup.
+            const destPoint = pickedUp ? job.drop : job.pickup;
+            const dest = hasCoords(destPoint) ? destPoint.latitude + ',' + destPoint.longitude
+                : pickedUp && dropText ? encodeURIComponent(dropText) : null;
+
+            if (!dest) {
                 box.append(
                     UI.el('p', { class: 'muted' }, 'No map coordinates for this delivery.'),
-                    UI.el('p', {}, UI.el('b', {}, job.dropAddressLabel || 'Address not specified')),
+                    UI.el('p', {}, UI.el('b', {}, dropText || 'Address not specified')),
                     UI.el('p', { class: 'muted' }, 'Call the customer to find the exact spot.'));
                 return box;
             }
 
-            const dest = end.latitude + ',' + end.longitude;
-            const origin = start ? start.latitude + ',' + start.longitude : null;
+            const origin = live ? live.latitude + ',' + live.longitude
+                : hasCoords(job.pickup) ? job.pickup.latitude + ',' + job.pickup.longitude : null;
+            // Never draw a from == to route: a single marker is enough then.
+            const from = origin && origin !== dest ? origin : null;
             const embed = 'https://maps.google.com/maps?'
-                + (origin ? 'saddr=' + origin + '&' : '')
+                + (from ? 'saddr=' + from + '&' : '')
                 + 'daddr=' + dest + '&output=embed';
             const navUrl = 'https://www.google.com/maps/dir/?api=1'
-                + (origin ? '&origin=' + origin : '')
+                + (from ? '&origin=' + from : '')
                 + '&destination=' + dest + '&travelmode=driving';
 
+            const stopName = pickedUp ? (dropText || 'the customer') : 'the restaurant';
             box.append(
                 UI.el('iframe', { class: 'map-frame', src: embed, loading: 'lazy', title: 'Route map' }),
                 UI.el('div', { class: 'map-legend muted' },
-                    UI.el('span', {}, 'Route: the restaurant → ' + (job.dropAddressLabel || 'the customer'))),
+                    UI.el('span', {}, live ? 'Live route: your position → ' + stopName
+                        : 'Route: the restaurant → ' + stopName)),
+                !live ? UI.el('p', { class: 'muted' },
+                    'Waiting for your GPS - the start point jumps to your live position once it reports.') : null,
+                pickedUp && !hasCoords(job.drop) && dropText ? UI.el('p', { class: 'muted' },
+                    'The customer address has no GPS pin - navigating to the written address instead.') : null,
                 UI.el('div', { class: 'form-actions' },
                     UI.el('a', {
                         href: navUrl, target: '_blank', rel: 'noopener',
@@ -100,11 +114,47 @@ App.register('/rider', {
             return box;
         };
 
-        const callCustomer = (job) => job.customerPhone
-            ? UI.el('a', {
-                href: 'tel:' + job.customerPhone, class: 'btn btn-ok btn-small'
-            }, 'Call customer')
-            : null;
+        // ---------------- live GPS stream ----------------
+
+        // While online, the browser position is watched continuously and pushed to Delivery
+        // Service every 10s; the open job mirrors it, so the rider map and the customer's
+        // tracking page both follow the ride in real time. The rider can also hit
+        // "Send live location" any time to push a fresh fix immediately.
+        let lastFix = null;
+        let gpsWatch = null;
+        let lastSentAt = null;
+        let lastAccuracy = null;
+        const startGps = () => {
+            if (gpsWatch != null || !navigator.geolocation) return;
+            gpsWatch = navigator.geolocation.watchPosition(
+                pos => {
+                    lastFix = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+                    lastAccuracy = pos.coords.accuracy != null ? Math.round(pos.coords.accuracy) : null;
+                },
+                () => { /* denied or unavailable - keep the last known fix */ },
+                { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 });
+        };
+
+        /** One manual push right now - the customer's tracking page picks it up on its next poll. */
+        const sendLocationNow = async () => {
+            try {
+                const pos = lastFix || await getPosition();
+                lastFix = { latitude: pos.latitude, longitude: pos.longitude };
+                if (pos.accuracy != null) lastAccuracy = Math.round(pos.accuracy);
+                await API.call('/deliveries/riders/me/location', { method: 'POST', body: lastFix });
+                lastSentAt = new Date();
+                UI.toast('Live location sent - the customer can follow you on the map', 'ok');
+            } catch (err) { UI.error(err); }
+        };
+
+        /** The manual send button plus a hint about the automatic 10s sharing. */
+        const liveLocationRow = () => UI.el('div', { class: 'form-actions', style: 'margin:0' },
+            UI.el('button', { class: 'btn-ok btn-small', onclick: sendLocationNow }, 'Send live location'),
+            UI.el('span', { class: 'muted' }, lastSentAt
+                ? 'Last sent ' + lastSentAt.toLocaleTimeString() +
+                (lastAccuracy != null ? ' (±' + lastAccuracy + ' m)' : '') + ' · auto-shares every 10s while online' +
+                (lastAccuracy != null && lastAccuracy > 200 ? ' · network-based fix on this device - open on a phone for exact GPS' : '')
+                : 'Shares automatically every 10s while online'));
 
         // ---------------- Home page ----------------
 
@@ -154,6 +204,7 @@ App.register('/rider', {
             const rider = await API.call('/deliveries/riders/me').catch(() => null);
             const online = !!rider && rider.status !== 'OFFLINE';
             isOnline = online;
+            if (online) startGps();
 
             const shiftCard = UI.el('div', { class: 'card' }, UI.el('h2', {}, 'Shift'));
             const displayName = UI.el('input', { type: 'text', value: rider?.displayName || (Auth.user?.name || '') });
@@ -324,7 +375,7 @@ App.register('/rider', {
                 UI.el('div', { class: 'line-item' },
                     UI.el('span', {}, 'Distance left'),
                     UI.el('span', {}, job.remainingDistanceKm != null ? job.remainingDistanceKm.toFixed(1) + ' km' : '—')),
-                UI.el('div', { class: 'form-actions' }, callCustomer(job)));
+                liveLocationRow());
 
             const mapCard = UI.el('div', { class: 'card' },
                 UI.el('h2', {}, (job.status === 'ASSIGNED' || job.status === 'ACCEPTED')
@@ -371,7 +422,7 @@ App.register('/rider', {
             root.replaceChildren(
                 UI.el('div', { class: 'page-head' },
                     backBtn('Dashboard'),
-                    UI.el('h1', {}, 'Delivery ' + (job.orderNo ? '#' + job.orderNo : job.orderId.slice(0, 8) + '…')),
+                    UI.el('h1', {}, job.orderNo ? 'Delivery #' + job.orderNo : 'Delivery'),
                     UI.chip(job.status)),
                 UI.el('div', { class: 'job-grid' }, infoCard, mapCard),
                 UI.el('div', { class: 'form-actions', style: 'margin-top:16px' }, ...actions));
@@ -407,11 +458,22 @@ App.register('/rider', {
 
         // While on the job page, keep the map and info fresh; while online on the dashboard,
         // keep the sidebar slot bar in step with new assignments and accepts.
-        const stop = UI.poll(async () => {
+        // Push the latest GPS fix while online; failures (service down, GPS off) are silent.
+        const pushTimer = setInterval(() => {
+            if (!isOnline || !lastFix) return;
+            API.call('/deliveries/riders/me/location', { method: 'POST', body: lastFix })
+                .then(() => { lastSentAt = new Date(); }).catch(() => { });
+        }, 10000);
+
+        const stopPoll = UI.poll(async () => {
             if (page === 'job') await drawJob();
             else if (page === 'home' && isOnline) await drawHome();
         }, 5000);
 
-        return stop;
+        return () => {
+            clearInterval(pushTimer);
+            if (gpsWatch != null && navigator.geolocation) navigator.geolocation.clearWatch(gpsWatch);
+            stopPoll();
+        };
     }
 });

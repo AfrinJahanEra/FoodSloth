@@ -61,8 +61,7 @@ App.register('/notifications', {
                                 UI.el('b', { style: n.read ? 'font-weight:600' : 'font-weight:800' }, n.title || n.type),
                                 n.read ? null : UI.el('span', { class: 'chip err' }, 'New')),
                             UI.el('div', { class: 'muted' }, n.body || ''),
-                            UI.el('div', { class: 'muted' }, UI.time(n.createdAt) +
-                                (n.orderId ? ' · order ' + n.orderId.slice(0, 8) + '…' : '')))),
+                            UI.el('div', { class: 'muted' }, UI.time(n.createdAt)))),
                     UI.el('div', { style: 'display:flex;gap:8px' }, ...actions)));
             }
             inboxCard.append(UI.el('div', { class: 'form-actions' },

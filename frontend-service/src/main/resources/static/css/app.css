@@ -99,6 +99,7 @@ body {
     gap: 2px;
     flex: 1;
     flex-wrap: wrap;
+    justify-content: center;
 }
 
 .topbar nav a {
@@ -141,7 +142,7 @@ body {
 
 /* ---------- Layout ---------- */
 
-main { max-width: 1060px; margin: 0 auto; padding: 28px 24px 64px; }
+main { max-width: 1360px; margin: 0 auto; padding: 22px 20px 56px; }
 
 h1 {
     font-size: 24px;
@@ -154,27 +155,27 @@ h1 {
     background: var(--card);
     border: 1px solid var(--line);
     border-radius: var(--radius);
-    padding: 20px;
-    margin-bottom: 16px;
+    padding: 16px;
+    margin-bottom: 12px;
     box-shadow: none;
 }
 
 .card h2 {
-    margin: 0 0 14px;
-    font-size: 16px;
+    margin: 0 0 10px;
+    font-size: 15px;
     font-weight: 650;
     letter-spacing: -0.01em;
 }
 
 .card h3 { margin: 0 0 8px; font-size: 14px; font-weight: 600; }
 
-.row { display: flex; gap: 16px; flex-wrap: wrap; }
+.row { display: flex; gap: 12px; flex-wrap: wrap; }
 .row > * { flex: 1; min-width: 260px; }
 
 .grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-    gap: 16px;
+    gap: 12px;
 }
 
 .muted { color: var(--muted); font-size: 13px; }
@@ -280,6 +281,12 @@ th {
 
 tbody tr:hover { background: #fafaf8; }
 tbody tr:last-child td { border-bottom: none; }
+
+/* Expanded order detail sits in its own row right below the order it belongs to. */
+.detail-row td {
+    background: #f7f8fa;
+    padding: 12px 16px;
+}
 
 /* ---------- Status chips ---------- */
 
@@ -400,7 +407,7 @@ body.landing main { max-width: none; margin: 0; padding: 0; }
     display: flex;
     flex-direction: column;
     justify-content: center;
-    max-width: 1060px;
+    max-width: 1360px;
     margin: 0 auto;
     padding: 28px;
 }
@@ -495,7 +502,7 @@ body.landing main { max-width: none; margin: 0; padding: 0; }
     color: #57493f;
 }
 
-.landing-section { max-width: 1060px; margin: 0 auto; padding: 44px 24px 56px; }
+.landing-section { max-width: 1360px; margin: 0 auto; padding: 44px 24px 56px; }
 .landing-section h2 {
     font-size: 22px;
     font-weight: 700;
@@ -510,7 +517,7 @@ body.landing main { max-width: none; margin: 0; padding: 0; }
 }
 
 .site-footer .foot-inner {
-    max-width: 1060px;
+    max-width: 1360px;
     margin: 0 auto;
     display: flex;
     align-items: center;

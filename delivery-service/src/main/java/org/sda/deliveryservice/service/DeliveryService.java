@@ -45,6 +45,7 @@ public class DeliveryService {
     private final RiderService riderService;
     private final RouteEstimator routeEstimator;
     private final DeliveryEventPublisher publisher;
+    private final AddressGeocoder geocoder;
 
     /** False by default: the admin assigns riders by hand; true restores nearest-rider auto-staffing. */
     @Value("${delivery.auto-assign}")
@@ -53,11 +54,13 @@ public class DeliveryService {
     public DeliveryService(DeliveryRepository deliveryRepository,
                            RiderService riderService,
                            RouteEstimator routeEstimator,
-                           DeliveryEventPublisher publisher) {
+                           DeliveryEventPublisher publisher,
+                           AddressGeocoder geocoder) {
         this.deliveryRepository = deliveryRepository;
         this.riderService = riderService;
         this.routeEstimator = routeEstimator;
         this.publisher = publisher;
+        this.geocoder = geocoder;
     }
 
     // ------------------------------------------------------------------
@@ -81,6 +84,7 @@ public class DeliveryService {
         delivery.setPickup(new GeoPoint(event.pickupLatitude(), event.pickupLongitude()));
         delivery.setDrop(new GeoPoint(event.dropLatitude(), event.dropLongitude()));
         delivery.setDropAddressLabel(event.dropAddressLabel());
+        resolveDrop(delivery);
         delivery.setCustomerPhone(event.customerPhone());
         delivery.setStatus(DeliveryStatus.PENDING_ASSIGNMENT);
         deliveryRepository.save(delivery);
@@ -186,8 +190,7 @@ public class DeliveryService {
         delivery.setAssignedAt(Instant.now());
         // Before pickup the rider still has to reach the restaurant, so the ETA spans both legs.
         // Without a believable rider fix the first leg is measured from the restaurant itself.
-        applyEstimate(delivery, routeEstimator.distanceKm(riderFix != null ? riderFix : delivery.getPickup(), delivery.getPickup())
-                + routeEstimator.distanceKm(delivery.getPickup(), delivery.getDrop()));
+        estimateFor(delivery, riderFix, false);
         Delivery saved = touch(delivery);
 
         log.info("Delivery {} assigned to rider {} by {} ({} min ETA)",
@@ -212,6 +215,30 @@ public class DeliveryService {
     // ------------------------------------------------------------------
     // Rider app actions
     // ------------------------------------------------------------------
+
+    /**
+     * Live GPS push from the rider app. The fix is stored on the rider and mirrored onto every
+     * open job, refreshing the remaining distance and ETA so the customer's tracking map follows
+     * the ride in real time. No event is published here - tracking pages poll the REST feed.
+     */
+    public void updateRiderLocation(String riderId, double latitude, double longitude) {
+        Rider rider = riderService.updateLocation(riderId, latitude, longitude);
+        GeoPoint fix = rider.getLocation();
+        if (fix == null) {
+            return; // sentinel fix - keep the last known position and estimates
+        }
+        Instant now = rider.getLocationUpdatedAt();
+        List<Delivery> liveJobs =
+                deliveryRepository.findByRiderIdAndStatusInOrderByAssignedAtAsc(riderId, LIVE_STATUSES);
+        for (Delivery delivery : liveJobs) {
+            delivery.setRiderLocation(fix);
+            delivery.setRiderLocationUpdatedAt(now);
+            boolean pickedUp = delivery.getStatus() == DeliveryStatus.PICKED_UP;
+            // Before pickup the rider still owes the restaurant leg; after it, only the drop leg.
+            estimateFor(delivery, fix, pickedUp);
+            touch(delivery);
+        }
+    }
 
     /**
      * The rider confirms the assignment. This is the moment the customer's order turns
@@ -241,9 +268,7 @@ public class DeliveryService {
         delivery.setStatus(DeliveryStatus.PICKED_UP);
         delivery.setPickedUpAt(Instant.now());
         // The restaurant leg is done; from here the ETA is only the ride to the customer.
-        GeoPoint from = delivery.getRiderLocation() != null && delivery.getRiderLocation().isReal()
-                ? delivery.getRiderLocation() : delivery.getPickup();
-        applyEstimate(delivery, routeEstimator.distanceKm(from, delivery.getDrop()));
+        estimateFor(delivery, delivery.getRiderLocation(), true);
         // No event here: the order already turned OUT_FOR_DELIVERY when the rider accepted.
         return touch(delivery);
     }
@@ -331,6 +356,59 @@ public class DeliveryService {
     // ------------------------------------------------------------------
     // Helpers
     // ------------------------------------------------------------------
+
+    /**
+     * Refreshes remaining km / ETA using real coordinates only. A leg whose pin is the (0,0)
+     * sentinel is never fed into the math - it would print ten-thousand-kilometre ETAs. When
+     * nothing real is measurable the estimate is cleared so the apps show an honest dash.
+     */
+    private void estimateFor(Delivery delivery, GeoPoint riderFix, boolean pickedUp) {
+        resolveDrop(delivery);
+        GeoPoint pickup = delivery.getPickup();
+        GeoPoint drop = delivery.getDrop();
+        boolean pickupReal = pickup != null && pickup.isReal();
+        boolean dropReal = drop != null && drop.isReal();
+
+        double remaining;
+        if (pickedUp) {
+            // Only the drop leg remains; without a real start point there is nothing to measure.
+            GeoPoint from = riderFix != null ? riderFix : (pickupReal ? pickup : null);
+            if (from == null || !dropReal) {
+                clearEstimate(delivery);
+                return;
+            }
+            remaining = routeEstimator.distanceKm(from, drop);
+        } else {
+            // The rider still owes the restaurant leg; the drop leg is added when its pin exists.
+            if (!pickupReal) {
+                clearEstimate(delivery);
+                return;
+            }
+            GeoPoint from = riderFix != null ? riderFix : pickup;
+            remaining = routeEstimator.distanceKm(from, pickup)
+                    + (dropReal ? routeEstimator.distanceKm(pickup, drop) : 0);
+        }
+        applyEstimate(delivery, remaining);
+    }
+
+    /**
+     * Orders placed on an address without a GPS pin arrive with the (0,0) sentinel drop.
+     * Resolve the address text to a real pin once (cached, so at most one lookup per
+     * address) so the distance/ETA math has a destination to measure to.
+     */
+    private void resolveDrop(Delivery delivery) {
+        GeoPoint drop = delivery.getDrop();
+        if (drop != null && drop.isReal()) {
+            return;
+        }
+        geocoder.geocode(delivery.getDropAddressLabel()).ifPresent(delivery::setDrop);
+    }
+
+    private void clearEstimate(Delivery delivery) {
+        delivery.setRemainingDistanceKm(null);
+        delivery.setEtaMinutes(null);
+        delivery.setEtaAt(null);
+    }
 
     private void applyEstimate(Delivery delivery, double remainingKm) {
         int minutes = routeEstimator.etaMinutes(remainingKm);

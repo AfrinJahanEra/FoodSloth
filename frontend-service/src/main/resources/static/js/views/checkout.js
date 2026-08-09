@@ -30,11 +30,6 @@ App.register('/checkout', {
                 UI.el('option', { value: 'CARD' }, 'Card (Stripe checkout)'),
                 UI.el('option', { value: 'CASH_ON_DELIVERY' }, 'Cash on delivery')
             );
-            const cardHint = UI.el('p', { class: 'muted', style: 'margin:-4px 0 12px' },
-                'Stripe test mode - use card 4242 4242 4242 4242 with any future expiry and any CVC.');
-            paymentMethod.addEventListener('change', () => {
-                cardHint.style.display = paymentMethod.value === 'CARD' ? '' : 'none';
-            });
             const note = UI.el('textarea', { rows: '2', placeholder: 'e.g. extra chili, no onions' });
             const submit = UI.el('button', { type: 'submit' }, 'Place order');
 
@@ -51,6 +46,17 @@ App.register('/checkout', {
                 UI.el('div', { class: 'row' }, UI.el('div', {}, aLabel), UI.el('div', {}, aStreet)),
                 UI.el('div', { class: 'row' }, UI.el('div', {}, aArea), UI.el('div', {}, aCity)),
                 UI.el('div', { class: 'row' }, UI.el('div', {}, aLat), UI.el('div', {}, aLng)),
+                UI.el('div', { class: 'form-actions', style: 'margin:0' }, UI.el('button', {
+                    type: 'button', class: 'btn-ghost btn-small',
+                    onclick: async () => {
+                        try {
+                            const fix = await UI.here();
+                            aLat.value = fix.latitude.toFixed(6);
+                            aLng.value = fix.longitude.toFixed(6);
+                            UI.toast('GPS pin filled from this device', 'ok');
+                        } catch (err) { UI.toast(err.message, 'err'); }
+                    }
+                }, 'Use my current location (GPS pin)')),
                 UI.el('div', { class: 'line-item' }, UI.el('span', {}, 'Set as default address'), aDefault),
                 UI.el('div', { class: 'form-actions' },
                     UI.el('button', {
@@ -97,7 +103,7 @@ App.register('/checkout', {
                                 note: note.value.trim() || null
                             }
                         });
-                        UI.toast('Order placed - id ' + res.orderId, 'ok');
+                        UI.toast('Order placed - opening your orders', 'ok');
                         location.hash = '#/orders/' + res.orderId;
                     } catch (err) {
                         UI.error(err);
@@ -109,7 +115,7 @@ App.register('/checkout', {
                 UI.el('div', { class: 'form-actions' }, toggleAddressForm,
                     UI.el('a', { class: 'btn-ghost btn-small', href: '#/profile' }, 'Manage addresses')),
                 addressForm,
-                UI.el('label', {}, 'Payment method'), paymentMethod, cardHint,
+                UI.el('label', {}, 'Payment method'), paymentMethod,
                 UI.el('label', {}, 'Note for the kitchen (optional)'), note,
                 UI.el('div', { class: 'form-actions' }, submit)
             );

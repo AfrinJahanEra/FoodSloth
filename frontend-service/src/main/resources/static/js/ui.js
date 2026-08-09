@@ -53,6 +53,17 @@ const UI = {
         return new Date(iso).toLocaleString();
     },
 
+    /** Device GPS fix; rejects when the browser cannot or may not locate. */
+    here() {
+        return new Promise((resolve, reject) => {
+            if (!navigator.geolocation) return reject(new Error('Browser geolocation unavailable'));
+            navigator.geolocation.getCurrentPosition(
+                pos => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+                err => reject(new Error('Location denied: ' + err.message)),
+                { enableHighAccuracy: true, maximumAge: 0, timeout: 8000 });
+        });
+    },
+
     /** Renders into #view, clearing whatever was there. */
     render(...nodes) {
         const view = document.getElementById('view');

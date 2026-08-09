@@ -26,6 +26,11 @@ public class Payment {
     @Field
     private Long orderNo;
 
+    /** Sequential human-facing payment number (#123) shown on slips instead of the UUID. */
+    @Field
+    @Indexed(unique = true, sparse = true)
+    private Long paymentNo;
+
     @Field
     private String userId;
 

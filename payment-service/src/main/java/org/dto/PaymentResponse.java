@@ -13,6 +13,7 @@ public record PaymentResponse(
         String id,
         String orderId,
         Long orderNo,
+        Long paymentNo,
         String userId,
         Long amount,
         String currency,
@@ -24,7 +25,8 @@ public record PaymentResponse(
         Instant updatedAt) {
 
     public static PaymentResponse from(Payment payment) {
-        return new PaymentResponse(payment.getId(), payment.getOrderId(), payment.getOrderNo(), payment.getUserId(), payment.getAmount(),
+        return new PaymentResponse(payment.getId(), payment.getOrderId(), payment.getOrderNo(), payment.getPaymentNo(),
+                payment.getUserId(), payment.getAmount(),
                 payment.getCurrency(), payment.getStatus(), payment.getPaymentMethod(), payment.getCheckoutUrl(),
                 payment.getFailureReason(), payment.getCreatedAt(), payment.getUpdatedAt());
     }

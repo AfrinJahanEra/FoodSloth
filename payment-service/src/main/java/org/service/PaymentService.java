@@ -9,6 +9,7 @@ import com.stripe.model.checkout.Session;
 import com.stripe.net.Webhook;
 import com.stripe.param.RefundCreateParams;
 import com.stripe.param.checkout.SessionCreateParams;
+import org.bson.Document;
 import org.dto.event.PaymentRequestedEvent;
 import org.entity.Payment;
 import org.entity.PaymentStatus;
@@ -18,6 +19,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.mongodb.core.FindAndModifyOptions;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -51,6 +57,9 @@ public class PaymentService {
 
     @Autowired
     private PaymentEventPublisher publisher;
+
+    @Autowired
+    private MongoTemplate mongoTemplate;
 
     @Value("${stripe.checkout.success-url}")
     private String successUrl;
@@ -92,15 +101,20 @@ public class PaymentService {
         Payment payment = new Payment();
         payment.setOrderId(event.orderId());
         payment.setOrderNo(event.orderNo());
+        payment.setPaymentNo(mintPaymentNo());
         payment.setUserId(event.userId());
         payment.setCurrency(normaliseCurrency(event.currency()));
         payment.setPaymentMethod(event.paymentMethod() == null ? "CARD" : event.paymentMethod());
         payment.setAmount(toMinorUnits(event.amount()));
 
         if (CASH_ON_DELIVERY.equalsIgnoreCase(payment.getPaymentMethod())) {
-            payment.setStatus(PaymentStatus.SUCCEEDED);
+            // Cash is collected at the door, so nothing is captured now: the ledger stays
+            // PENDING and flips to SUCCEEDED when delivery.completed arrives. The order is
+            // confirmed by Order Service itself at creation, so no event is published here.
+            payment.setStatus(PaymentStatus.PENDING);
             Payment saved = paymentRepository.save(payment);
-            publisher.publishSucceeded(saved);
+            log.info("Cash-on-delivery payment #{} for order {} recorded as PENDING until the delivery completes",
+                    saved.getPaymentNo(), saved.getOrderId());
             return;
         }
 
@@ -121,6 +135,23 @@ public class PaymentService {
             // waiting - so the order is told the payment failed instead of the message being requeued.
             failWithoutCharging(payment, "Could not start the card payment: " + e.getMessage());
         }
+    }
+
+    /** The rider handed the order over - a cash-on-delivery payment is confirmed at this moment. */
+    public void onDeliveryCompleted(String orderId) {
+        Payment payment = paymentRepository.findByOrderId(orderId).orElse(null);
+        if (payment == null) {
+            return;
+        }
+        if (!CASH_ON_DELIVERY.equalsIgnoreCase(payment.getPaymentMethod())
+                || payment.getStatus() != PaymentStatus.PENDING) {
+            return;
+        }
+        payment.setStatus(PaymentStatus.SUCCEEDED);
+        payment.setUpdatedAt(Instant.now());
+        paymentRepository.save(payment);
+        log.info("Cash-on-delivery payment #{} for order {} confirmed on delivery completion",
+                payment.getPaymentNo(), orderId);
     }
 
     /** The order is off. Give the money back if it was taken; otherwise just close the payment off. */
@@ -363,6 +394,15 @@ public class PaymentService {
             return 0L;
         }
         return Math.round(majorUnits * 100.0);
+    }
+
+    /** Atomic sequential payment number (#1, #2, ...) shown on slips instead of the UUID. */
+    private long mintPaymentNo() {
+        Query query = new Query(Criteria.where("_id").is("payment-no"));
+        Update update = new Update().inc("seq", 1);
+        Document counter = mongoTemplate.findAndModify(query, update,
+                FindAndModifyOptions.options().upsert(true).returnNew(true), Document.class, "counters");
+        return ((Number) counter.get("seq")).longValue();
     }
 
     private String normaliseCurrency(String currency) {

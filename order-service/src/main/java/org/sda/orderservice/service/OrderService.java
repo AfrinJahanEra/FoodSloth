@@ -90,6 +90,16 @@ public class OrderService {
         Order order = buildOrderFrom(priced);
         Order saved = orderRepository.save(order);
         eventPublisher.publishPaymentRequested(saved);
+
+        if (saved.getPaymentMethod() == PaymentMethod.CASH_ON_DELIVERY) {
+            // Cash is collected at the door - there is nothing to charge now, so the order
+            // confirms at once. Payment Service keeps the ledger entry PENDING and confirms
+            // it when delivery.completed arrives.
+            saved.setStatus(OrderStatus.CONFIRMED);
+            saved.setUpdatedAt(Instant.now());
+            saved = orderRepository.save(saved);
+            eventPublisher.publishOrderConfirmed(saved);
+        }
     }
 
     /**
@@ -175,7 +185,10 @@ public class OrderService {
     }
 
     public void markDelivered(String orderId) {
-        transition(orderId, OrderStatus.OUT_FOR_DELIVERY, OrderStatus.DELIVERED, "delivery.completed");
+        // READY/PREPARING are accepted too: if delivery.started was ever missed, the
+        // completion must still close the order instead of being ignored.
+        transition(orderId, OrderStatus.DELIVERED, "delivery.completed",
+                OrderStatus.OUT_FOR_DELIVERY, OrderStatus.READY, OrderStatus.PREPARING);
         Order order = orderRepository.findById(orderId).orElse(null);
         if (order != null && order.getStatus() == OrderStatus.DELIVERED) {
             eventPublisher.publishOrderDelivered(order);

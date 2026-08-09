@@ -25,8 +25,12 @@ public final class Constants {
     /** An order was cancelled; refund it if it was already charged. */
     public static final String RK_ORDER_CANCELLED = "order.cancelled";
 
+    /** A rider handed the order over; cash-on-delivery payments confirm at this moment. */
+    public static final String RK_DELIVERY_COMPLETED = "delivery.completed";
+
     public static final String QUEUE_PAYMENT_REQUESTED = "payment.order-requested.queue";
     public static final String QUEUE_ORDER_CANCELLED = "payment.order-cancelled.queue";
+    public static final String QUEUE_DELIVERY_COMPLETED = "payment.delivery-completed.queue";
 
     // ---- Published ----
 

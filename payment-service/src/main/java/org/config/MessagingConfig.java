@@ -38,6 +38,11 @@ public class MessagingConfig {
         return new Queue(Constants.QUEUE_ORDER_CANCELLED, true);
     }
 
+    @Bean
+    public Queue deliveryCompletedQueue() {
+        return new Queue(Constants.QUEUE_DELIVERY_COMPLETED, true);
+    }
+
     // ---- Bindings ----
 
     @Bean
@@ -52,6 +57,13 @@ public class MessagingConfig {
         return BindingBuilder.bind(orderCancelledQueue())
                 .to(foodExchange())
                 .with(Constants.RK_ORDER_CANCELLED);
+    }
+
+    @Bean
+    public Binding deliveryCompletedBinding() {
+        return BindingBuilder.bind(deliveryCompletedQueue())
+                .to(foodExchange())
+                .with(Constants.RK_DELIVERY_COMPLETED);
     }
 
     // ---- Message conversion / template ----

@@ -148,6 +148,17 @@ App.register('/profile', {
                 UI.el('div', { class: 'row' }, UI.el('div', {}, label), UI.el('div', {}, street)),
                 UI.el('div', { class: 'row' }, UI.el('div', {}, area), UI.el('div', {}, city)),
                 UI.el('div', { class: 'row' }, UI.el('div', {}, lat), UI.el('div', {}, lng)),
+                UI.el('div', { class: 'form-actions', style: 'margin:0' }, UI.el('button', {
+                    type: 'button', class: 'btn-ghost btn-small',
+                    onclick: async () => {
+                        try {
+                            const fix = await UI.here();
+                            lat.value = fix.latitude.toFixed(6);
+                            lng.value = fix.longitude.toFixed(6);
+                            UI.toast('GPS pin filled from this device - save the address to keep it', 'ok');
+                        } catch (err) { UI.toast(err.message, 'err'); }
+                    }
+                }, 'Use my current location (GPS pin)')),
                 UI.el('div', { class: 'line-item' }, UI.el('span', {}, 'Set as default address'), isDefault),
                 UI.el('div', { class: 'form-actions' },
                     UI.el('button', {

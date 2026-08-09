@@ -38,27 +38,49 @@ App.register('/orders', {
             return stop;
         }
 
-        const detailCard = UI.el('div', { class: 'card' }, UI.el('p', { class: 'muted' }, 'Select an order to see it live.'));
         const deliveriesCard = UI.el('div', { class: 'card' }, UI.el('h2', {}, 'Your deliveries'));
         const paymentsCard = UI.el('div', { class: 'card' }, UI.el('h2', {}, 'Payment history'));
         const table = UI.el('table', {},
             UI.el('tr', {}, UI.el('th', {}, 'Order'), UI.el('th', {}, 'Placed'),
                 UI.el('th', {}, 'Total'), UI.el('th', {}, 'Status'), UI.el('th', {}, '')));
 
-        /** Friendly order label: the sequential #number when known, else a UUID prefix. */
+        /** Friendly order label: the sequential #number; never a database id. */
         const orderRef = (orderNo, id) => orderNo
             ? 'Order #' + orderNo
-            : 'Order ' + String(id || '').slice(0, 8) + '…';
+            : 'Order';
 
         let stopPolling = null;
+        /** One expandable detail row per order, shown right below its own row. */
+        const rowsById = new Map();
+        const openState = { id: null, row: null, button: null };
 
         const openOrder = async (orderId) => {
+            const entry = rowsById.get(orderId);
+            if (!entry) return;
             if (stopPolling) { stopPolling(); stopPolling = null; }
+
+            // Clicking the already-open order collapses it again.
+            if (openState.id === orderId && entry.row.style.display !== 'none') {
+                entry.row.style.display = 'none';
+                entry.button.replaceChildren('Open');
+                openState.id = null;
+                return;
+            }
+
+            if (openState.row && openState.row !== entry.row) {
+                openState.row.style.display = 'none';
+                openState.button.replaceChildren('Open');
+            }
+            openState.id = orderId;
+            openState.row = entry.row;
+            openState.button = entry.button;
+            entry.row.style.display = '';
+            entry.button.replaceChildren('Close');
 
             const drawDetail = async () => {
                 const order = await API.call('/orders/' + orderId);
                 const payment = await API.call('/payments/order/' + order.id).catch(() => null);
-                detailCard.replaceChildren(...orderDetail(order, payment));
+                entry.cell.replaceChildren(...orderDetail(order, payment));
 
                 // Keep polling while the order can still move.
                 const live = !['DELIVERED', 'CANCELLED', 'REJECTED', 'PAYMENT_FAILED'].includes(order.status);
@@ -104,7 +126,7 @@ App.register('/orders', {
                         onclick: async () => {
                             try {
                                 const res = await API.call(`/orders/${order.id}/reorder`, { method: 'POST', body: {} });
-                                UI.toast('Reordered - new order ' + (res.orderId || ''), 'ok');
+                                UI.toast('Reordered - opening your new order', 'ok');
                                 location.hash = '#/orders/' + (res.orderId || '');
                             } catch (err) { UI.error(err); }
                         }
@@ -130,7 +152,9 @@ App.register('/orders', {
                         'To: ' + (order.deliveryAddress || '-') + ' · ' + order.paymentMethod),
                     payment ? UI.el('p', { class: 'muted' },
                         'Payment: ', UI.chip(payment.status),
-                        payment.failureReason ? ' · ' + payment.failureReason : '') : null,
+                        payment.failureReason ? ' · ' + payment.failureReason :
+                            (payment.paymentMethod === 'CASH_ON_DELIVERY' && payment.status === 'PENDING'
+                                ? ' · pay cash when the order arrives - it confirms on delivery' : '')) : null,
                     UI.el('div', { class: 'form-actions' }, ...actions)
                 ];
             };
@@ -139,19 +163,21 @@ App.register('/orders', {
         };
 
         for (const order of list) {
+            const cell = UI.el('td', { colspan: '5' });
+            const detailRow = UI.el('tr', { class: 'detail-row', style: 'display:none' }, cell);
             const button = UI.el('button', { class: 'btn-ghost btn-small', onclick: () => openOrder(order.id) }, 'Open');
+            rowsById.set(order.id, { row: detailRow, cell, button });
             table.append(UI.el('tr', {},
-                UI.el('td', {}, UI.el('b', {}, order.orderNo ? '#' + order.orderNo : order.id.slice(0, 8) + '…')),
+                UI.el('td', {}, UI.el('b', {}, order.orderNo ? '#' + order.orderNo : '—')),
                 UI.el('td', {}, UI.time(order.createdAt)),
                 UI.el('td', {}, UI.money(order.grandTotal, order.currency)),
                 UI.el('td', {}, UI.chip(order.status)),
-                UI.el('td', {}, button)));
+                UI.el('td', {}, button)), detailRow);
         }
 
         UI.render(
             head,
             UI.el('div', { class: 'card' }, UI.el('h2', {}, 'All orders'), table),
-            detailCard,
             deliveriesCard,
             paymentsCard
         );
@@ -181,11 +207,13 @@ App.register('/orders', {
             for (const p of pays) {
                 paymentsCard.append(UI.el('div', { class: 'line-item' },
                     UI.el('div', {},
-                        UI.el('b', {}, 'Payment ' + p.id.slice(0, 8) + '… '), UI.chip(p.status),
+                        UI.el('b', {}, (p.paymentNo ? 'Payment #' + p.paymentNo : 'Payment') + ' '), UI.chip(p.status),
                         UI.el('div', { class: 'muted' },
-                            UI.money(p.amount, p.currency) + ' · ' + p.paymentMethod +
+                            UI.money((p.amount || 0) / 100, p.currency) + ' · ' + p.paymentMethod +
                             ' · ' + orderRef(p.orderNo, p.orderId) + ' · ' + UI.time(p.createdAt) +
-                            (p.failureReason ? ' · ' + p.failureReason : '')))));
+                            (p.failureReason ? ' · ' + p.failureReason :
+                                (p.paymentMethod === 'CASH_ON_DELIVERY' && p.status === 'PENDING'
+                                    ? ' · confirms when the rider delivers' : ''))))));
             }
         } catch { /* payment history is best-effort */ }
 
