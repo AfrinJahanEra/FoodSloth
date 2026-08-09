@@ -13,11 +13,13 @@ import java.time.Instant;
 public record DeliveryResponse(
         String id,
         String orderId,
+        Long orderNo,
         String userId,
         String restaurantId,
         GeoPoint pickup,
         GeoPoint drop,
         String dropAddressLabel,
+        String customerPhone,
         DeliveryStatus status,
         String riderId,
         String riderDisplayName,
@@ -35,8 +37,9 @@ public record DeliveryResponse(
         Instant updatedAt) {
 
     public static DeliveryResponse from(Delivery delivery) {
-        return new DeliveryResponse(delivery.getId(), delivery.getOrderId(), delivery.getUserId(),
+        return new DeliveryResponse(delivery.getId(), delivery.getOrderId(), delivery.getOrderNo(), delivery.getUserId(),
                 delivery.getRestaurantId(), delivery.getPickup(), delivery.getDrop(), delivery.getDropAddressLabel(),
+                delivery.getCustomerPhone(),
                 delivery.getStatus(), delivery.getRiderId(), delivery.getRiderDisplayName(), delivery.getRiderPhone(),
                 delivery.getRiderLocation(), delivery.getRiderLocationUpdatedAt(), delivery.getRemainingDistanceKm(),
                 delivery.getEtaMinutes(), delivery.getEtaAt(), delivery.getAssignedAt(), delivery.getAcceptedAt(),

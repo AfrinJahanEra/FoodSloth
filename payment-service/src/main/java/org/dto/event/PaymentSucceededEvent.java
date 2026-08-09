@@ -10,6 +10,8 @@ package org.dto.event;
  */
 public record PaymentSucceededEvent(
         String orderId,
+        /** Sequential human-facing order number (#123) for the receipt message. */
+        Long orderNo,
         String userId,
         String paymentId,
         Long amountMinor,

@@ -14,6 +14,7 @@ import java.util.List;
  */
 public record UserResponse(
         String id,
+        String code,
         String email,
         String phone,
         String name,
@@ -31,6 +32,7 @@ public record UserResponse(
     public static UserResponse from(User user) {
         return new UserResponse(
                 user.getId(),
+                user.getCode(),
                 user.getEmail(),
                 user.getPhone(),
                 user.getName(),

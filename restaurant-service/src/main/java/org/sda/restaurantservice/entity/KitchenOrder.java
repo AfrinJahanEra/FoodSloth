@@ -32,6 +32,10 @@ public class KitchenOrder {
     @Id
     private String id;
 
+    /** Sequential human-facing order number (#123) minted by Order Service; shown on the kitchen screen. */
+    @Field
+    private Long orderNo;
+
     @Field
     @Indexed
     private String userId;
@@ -78,6 +82,10 @@ public class KitchenOrder {
 
     @Field
     private Double dropLongitude;
+
+    /** The customer's phone number, forwarded inside restaurant.order-ready for the rider. */
+    @Field
+    private String customerPhone;
 
     @Field
     private Instant createdAt = Instant.now();

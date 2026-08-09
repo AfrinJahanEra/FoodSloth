@@ -8,9 +8,8 @@ package org.sda.notificationservice.messaging;
  * are {@code <consuming-service>.<event>.queue} and are declared only by the service that consumes
  * them - Notification Service never declares another service's queue.
  *
- * <p>Notification Service is the platform's biggest listener and almost pure consumer: the only key
- * it publishes is {@code marketing.broadcast}, and it publishes that to itself so that a broadcast
- * triggered over REST and one triggered by another service travel exactly the same path.
+ * <p>Notification Service is the platform's biggest listener and a pure consumer: it publishes
+ * nothing of its own.
  *
  * <p>See README.md for the full platform-wide event catalogue.
  */
@@ -20,6 +19,13 @@ public final class Constants {
     }
 
     public static final String EXCHANGE = "food.exchange";
+
+    // ---- Consumed: user accounts ----
+
+    /** Announces every new account; replayed for each admin at User Service startup. */
+    public static final String RK_USER_REGISTERED = "user.registered";
+
+    public static final String QUEUE_USER_REGISTERED = "notification.user-registered.queue";
 
     // ---- Consumed: order lifecycle ----
 
@@ -58,11 +64,4 @@ public final class Constants {
     public static final String QUEUE_DELIVERY_ASSIGNED = "notification.delivery-assigned.queue";
     public static final String QUEUE_DELIVERY_STARTED = "notification.delivery-started.queue";
     public static final String QUEUE_DELIVERY_ARRIVING = "notification.delivery-arriving.queue";
-
-    // ---- Consumed and published: promotional broadcast ----
-
-    /** Marketing campaign fan-out. Published by this service's REST endpoint and by any service. */
-    public static final String RK_MARKETING_BROADCAST = "marketing.broadcast";
-
-    public static final String QUEUE_MARKETING_BROADCAST = "notification.marketing-broadcast.queue";
 }

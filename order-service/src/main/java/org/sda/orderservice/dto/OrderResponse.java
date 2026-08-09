@@ -11,6 +11,7 @@ import java.util.List;
 /** What the client sees when it polls {@code GET /orders/{orderId}}. */
 public record OrderResponse(
         String id,
+        Long orderNo,
         String userId,
         String restaurantId,
         String restaurantName,

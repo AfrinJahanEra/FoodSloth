@@ -30,14 +30,11 @@ public final class Constants {
 
     // ---- Published ----
 
-    /** A rider has been auto-assigned to a delivery. */
+    /** A rider has been assigned to a delivery (by the admin, or automatically). */
     public static final String RK_DELIVERY_ASSIGNED = "delivery.assigned";
 
-    /** The rider collected the food and is on the way to the customer. */
+    /** The rider accepted the assignment and is on the way; the order turns OUT_FOR_DELIVERY. */
     public static final String RK_DELIVERY_STARTED = "delivery.started";
-
-    /** The rider is within the arrival radius of the drop point. */
-    public static final String RK_DELIVERY_ARRIVING = "delivery.arriving";
 
     /** The rider handed the order over to the customer. */
     public static final String RK_DELIVERY_COMPLETED = "delivery.completed";

@@ -27,6 +27,18 @@ public class MessagingConfig {
         return new TopicExchange(Constants.EXCHANGE, true, false);
     }
 
+    // ---- User accounts ----
+
+    @Bean
+    public Queue userRegisteredQueue() {
+        return new Queue(Constants.QUEUE_USER_REGISTERED, true);
+    }
+
+    @Bean
+    public Binding userRegisteredBinding(Queue userRegisteredQueue, TopicExchange foodExchange) {
+        return BindingBuilder.bind(userRegisteredQueue).to(foodExchange).with(Constants.RK_USER_REGISTERED);
+    }
+
     // ---- Order lifecycle ----
 
     @Bean
@@ -143,18 +155,6 @@ public class MessagingConfig {
     @Bean
     public Binding deliveryArrivingBinding(Queue deliveryArrivingQueue, TopicExchange foodExchange) {
         return BindingBuilder.bind(deliveryArrivingQueue).to(foodExchange).with(Constants.RK_DELIVERY_ARRIVING);
-    }
-
-    // ---- Promotional broadcast ----
-
-    @Bean
-    public Queue marketingBroadcastQueue() {
-        return new Queue(Constants.QUEUE_MARKETING_BROADCAST, true);
-    }
-
-    @Bean
-    public Binding marketingBroadcastBinding(Queue marketingBroadcastQueue, TopicExchange foodExchange) {
-        return BindingBuilder.bind(marketingBroadcastQueue).to(foodExchange).with(Constants.RK_MARKETING_BROADCAST);
     }
 
     // ---- Serialisation ----

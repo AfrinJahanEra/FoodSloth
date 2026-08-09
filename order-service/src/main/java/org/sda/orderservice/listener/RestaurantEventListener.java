@@ -2,6 +2,7 @@ package org.sda.orderservice.listener;
 
 import org.sda.orderservice.dto.event.KitchenDecisionEvent;
 import org.sda.orderservice.dto.event.OrderPricedEvent;
+import org.sda.orderservice.dto.event.OrderReadyEvent;
 import org.sda.orderservice.dto.event.OrderUnavailableEvent;
 import org.sda.orderservice.messaging.Constants;
 import org.sda.orderservice.service.OrderService;
@@ -34,6 +35,11 @@ public class RestaurantEventListener {
     @RabbitListener(queues = Constants.QUEUE_ORDER_ACCEPTED)
     public void onOrderAccepted(KitchenDecisionEvent event) {
         orderService.markPreparing(event.orderId());
+    }
+
+    @RabbitListener(queues = Constants.QUEUE_ORDER_READY)
+    public void onOrderReady(OrderReadyEvent event) {
+        orderService.markReady(event.orderId());
     }
 
     @RabbitListener(queues = Constants.QUEUE_ORDER_REJECTED)

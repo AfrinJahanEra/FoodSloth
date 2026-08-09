@@ -18,7 +18,10 @@ App.register('/cart', {
         const byId = Object.fromEntries(menu.map(item => [item.id, item]));
 
         const wrap = UI.el('div');
-        const head = UI.el('h1', {}, 'Your cart');
+        const head = UI.el('div', { class: 'admin-head' },
+            UI.el('div', {},
+                UI.el('h1', {}, 'Your cart'),
+                UI.el('div', { class: 'sub' }, 'Review your items and head to checkout')));
         const card = UI.el('div', { class: 'card' });
         wrap.append(head, card);
         UI.render(wrap);
@@ -26,12 +29,17 @@ App.register('/cart', {
         const draw = () => {
             card.replaceChildren();
             if (!cart.items || !cart.items.length) {
-                card.append(UI.el('p', { class: 'muted' }, 'Your cart is empty.'),
-                    UI.el('a', { class: 'btn btn-ghost', href: '#/' }, 'Browse the menu'));
+                card.append(UI.el('div', { class: 'empty' },
+                    UI.el('div', { class: 'big' }, Icon.of('cart', 34)), 'Your cart is empty.'),
+                    UI.el('div', { class: 'center' },
+                        UI.el('a', { class: 'btn btn-ghost', href: '#/' }, 'Browse the menu')));
                 return;
             }
+            let subtotal = 0;
             for (const line of cart.items) {
                 const item = byId[line.itemId];
+                const price = item ? item.price : 0;
+                subtotal += price * line.quantity;
                 const qty = UI.el('input', {
                     type: 'number', min: '1', value: line.quantity,
                     style: 'width:80px'
@@ -48,10 +56,16 @@ App.register('/cart', {
                 });
 
                 card.append(UI.el('div', { class: 'line-item' },
-                    UI.el('div', {},
-                        UI.el('b', {}, item ? item.name : line.itemId),
-                        item ? UI.el('div', { class: 'muted' }, UI.money(item.price) + ' each') : null),
+                    UI.el('div', { style: 'display:flex;align-items:center;gap:12px' },
+                        item && item.photo ? UI.el('img', {
+                            class: 'thumb-mini', src: item.photo, alt: item.name,
+                            onerror: (e) => e.target.replaceWith(UI.el('div', { class: 'thumb-mini thumb-empty' }, Icon.of('utensils', 18)))
+                        }) : UI.el('div', { class: 'thumb-mini thumb-empty' }, Icon.of('utensils', 18)),
+                        UI.el('div', {},
+                            UI.el('b', {}, item ? item.name : line.itemId),
+                            item ? UI.el('div', { class: 'muted' }, UI.money(item.price) + ' each') : null)),
                     UI.el('div', { style: 'display:flex;gap:8px;align-items:center' },
+                        UI.el('b', {}, UI.money(price * line.quantity)),
                         qty,
                         UI.el('button', {
                             class: 'btn-ghost btn-small',
@@ -66,7 +80,10 @@ App.register('/cart', {
                         }, 'Remove'))
                 ));
             }
-            card.append(UI.el('div', { class: 'form-actions' },
+            card.append(UI.el('div', { class: 'line-item' },
+                UI.el('b', {}, 'Subtotal'), UI.el('b', {}, UI.money(subtotal))),
+                UI.el('p', { class: 'muted' }, 'Delivery charge and tax are added at checkout.'),
+                UI.el('div', { class: 'form-actions' },
                 UI.el('button', {
                     class: 'btn-danger btn-small',
                     onclick: async () => {

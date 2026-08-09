@@ -20,13 +20,16 @@ spring:
     database: food_delivery_db
 
 delivery:
+  # Every rider can carry at most this many deliveries per calendar day.
+  slots-per-day: 5
+  # False: the admin assigns riders by hand from the admin console. True: nearest free rider is
+  # picked automatically (kept as an opt-in fallback).
+  auto-assign: false
   # Average city riding speed used for every ETA calculation.
   average-speed-kmph: 22
   # Flat minutes added to an ETA for handing the food over at the restaurant and at the door.
   handover-minutes: 5
-  # A rider closer than this to the drop point counts as "arriving" and triggers a push.
-  arrival-radius-km: 0.4
-  # Riders further than this from the restaurant are never auto-assigned.
+  # Riders further than this from the restaurant are never auto-assigned (auto-assign mode only).
   assignment-radius-km: 8
   # A rider whose GPS ping is older than this is treated as unreachable, not available.
   location-max-age-minutes: 5

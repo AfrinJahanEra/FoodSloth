@@ -34,11 +34,20 @@ const API = {
         const token = API.token();
         if (token) headers['Authorization'] = 'Bearer ' + token;
 
-        const res = await fetch(API.BASE + path, {
-            method: opts.method || (opts.body ? 'POST' : 'GET'),
+        const method = opts.method || (opts.body ? 'POST' : 'GET');
+        const send = () => fetch(API.BASE + path, {
+            method,
             headers,
             body: opts.body ? JSON.stringify(opts.body) : undefined
         });
+
+        let res = await send();
+        // A 5xx usually means a service was mid-restart when the gateway routed the call.
+        // GETs are safe to repeat, so give the backend a moment and try once more.
+        if (method === 'GET' && res.status >= 500) {
+            await new Promise(r => setTimeout(r, 1200));
+            res = await send();
+        }
 
         if (res.status === 204) return null;
 

@@ -28,6 +28,7 @@ public class PaymentEventPublisher {
     public void publishSucceeded(Payment payment) {
         PaymentSucceededEvent event = new PaymentSucceededEvent(
                 payment.getOrderId(),
+                payment.getOrderNo(),
                 payment.getUserId(),
                 payment.getId(),
                 payment.getAmount(),
@@ -39,6 +40,7 @@ public class PaymentEventPublisher {
     public void publishFailed(Payment payment, String reason) {
         PaymentFailedEvent event = new PaymentFailedEvent(
                 payment.getOrderId(),
+                payment.getOrderNo(),
                 payment.getUserId(),
                 payment.getId(),
                 reason);

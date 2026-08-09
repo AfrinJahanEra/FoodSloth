@@ -12,7 +12,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * Declares the shared exchange plus the eight queues Order Service owns.
+ * Declares the shared exchange plus the nine queues Order Service owns.
  *
  * <p>Declaring the exchange here is safe even though other services declare it too: an AMQP
  * exchange declaration with identical name and type is a no-op, which is what lets each service
@@ -41,6 +41,11 @@ public class MessagingConfig {
     @Bean
     public Queue orderAcceptedQueue() {
         return new Queue(Constants.QUEUE_ORDER_ACCEPTED, true);
+    }
+
+    @Bean
+    public Queue orderReadyQueue() {
+        return new Queue(Constants.QUEUE_ORDER_READY, true);
     }
 
     @Bean
@@ -89,6 +94,13 @@ public class MessagingConfig {
         return BindingBuilder.bind(orderAcceptedQueue())
                 .to(foodExchange())
                 .with(Constants.RK_ORDER_ACCEPTED);
+    }
+
+    @Bean
+    public Binding orderReadyBinding() {
+        return BindingBuilder.bind(orderReadyQueue())
+                .to(foodExchange())
+                .with(Constants.RK_ORDER_READY);
     }
 
     @Bean

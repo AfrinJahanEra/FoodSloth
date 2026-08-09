@@ -5,6 +5,7 @@ import org.sda.deliveryservice.entity.Delivery;
 import org.sda.deliveryservice.entity.DeliveryStatus;
 import org.sda.deliveryservice.entity.GeoPoint;
 import org.sda.deliveryservice.entity.Rider;
+import org.sda.deliveryservice.entity.RiderStatus;
 import org.sda.deliveryservice.publisher.DeliveryEventPublisher;
 import org.sda.deliveryservice.repository.DeliveryRepository;
 import org.slf4j.Logger;
@@ -20,12 +21,17 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * The delivery lifecycle: create from an event, auto-assign a rider, track the ride, publish
+ * The delivery lifecycle: create from an event, get a rider onto it, track the ride, publish
  * progress.
  *
+ * <p>Riders are staffed by the admin, who watches the online-rider board and assigns a free rider
+ * to each waiting job ({@link #assignByAdmin}). An online rider cannot refuse an assignment -
+ * they accept it, ride it out and mark it delivered. With {@code delivery.auto-assign} switched
+ * on the service additionally staffs jobs itself, nearest-free-rider first.
+ *
  * <p>Every inbound handler is written to be safely re-runnable, because RabbitMQ can redeliver a
- * message and because the assignment sweep revisits the same rows repeatedly. Out-of-order or
- * duplicate input is logged and ignored rather than throwing, which would only bounce the message.
+ * message. Out-of-order or duplicate input is logged and ignored rather than throwing, which would
+ * only bounce the message.
  */
 @Service
 public class DeliveryService {
@@ -40,8 +46,9 @@ public class DeliveryService {
     private final RouteEstimator routeEstimator;
     private final DeliveryEventPublisher publisher;
 
-    @Value("${delivery.arrival-radius-km}")
-    private double arrivalRadiusKm;
+    /** False by default: the admin assigns riders by hand; true restores nearest-rider auto-staffing. */
+    @Value("${delivery.auto-assign}")
+    private boolean autoAssign;
 
     public DeliveryService(DeliveryRepository deliveryRepository,
                            RiderService riderService,
@@ -57,7 +64,7 @@ public class DeliveryService {
     // Inbound events
     // ------------------------------------------------------------------
 
-    /** Handles {@code restaurant.order-ready}: create the job, then try to staff it immediately. */
+    /** Handles {@code restaurant.order-ready}: create the job, waiting for the admin to staff it. */
     public void onOrderReady(OrderReadyEvent event) {
         Optional<Delivery> existing = deliveryRepository.findByOrderId(event.orderId());
         if (existing.isPresent()) {
@@ -68,16 +75,22 @@ public class DeliveryService {
         Delivery delivery = new Delivery();
         delivery.setId(UUID.randomUUID().toString());
         delivery.setOrderId(event.orderId());
+        delivery.setOrderNo(event.orderNo());
         delivery.setUserId(event.userId());
         delivery.setRestaurantId(event.restaurantId());
         delivery.setPickup(new GeoPoint(event.pickupLatitude(), event.pickupLongitude()));
         delivery.setDrop(new GeoPoint(event.dropLatitude(), event.dropLongitude()));
         delivery.setDropAddressLabel(event.dropAddressLabel());
+        delivery.setCustomerPhone(event.customerPhone());
         delivery.setStatus(DeliveryStatus.PENDING_ASSIGNMENT);
         deliveryRepository.save(delivery);
 
-        log.info("Delivery {} created for order {}", delivery.getId(), delivery.getOrderId());
-        tryAssign(delivery);
+        log.info("Delivery {} created for order {}; waiting for the admin to assign a rider",
+                delivery.getId(), delivery.getOrderId());
+        // Default mode parks the job for the admin board; auto-assign is an opt-in fallback.
+        if (autoAssign) {
+            tryAssign(delivery);
+        }
     }
 
     /** Handles {@code order.cancelled}: stop the job and give the rider back to the pool. */
@@ -106,11 +119,36 @@ public class DeliveryService {
     }
 
     // ------------------------------------------------------------------
-    // Automatic assignment
+    // Assignment - admin first, automatic only when switched on
     // ------------------------------------------------------------------
 
     /**
-     * Picks the nearest free rider and offers them the job.
+     * The admin hands a waiting job to a specific rider. The rider must be online and must still
+     * have a free slot for today - an online rider cannot refuse, acceptance is mandatory.
+     */
+    public synchronized Delivery assignByAdmin(String deliveryId, String riderId) {
+        Delivery delivery = getById(deliveryId);
+        if (delivery.getStatus() != DeliveryStatus.PENDING_ASSIGNMENT) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Only a PENDING_ASSIGNMENT delivery can be assigned (current status: " + delivery.getStatus() + ")");
+        }
+
+        Rider rider = riderService.require(riderId);
+        if (rider.getStatus() == RiderStatus.OFFLINE) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Rider " + rider.getDisplayName() + " is offline and cannot take deliveries");
+        }
+        if (!riderService.hasFreeSlotToday(rider)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Rider " + rider.getDisplayName() + " has already used all of today's delivery slots");
+        }
+
+        return attachRider(delivery, rider, "admin");
+    }
+
+    /**
+     * Automatic staffing, nearest free rider first - only used when {@code delivery.auto-assign}
+     * is switched on.
      *
      * <p>Synchronised because the event listener and the retry sweep can both reach this at the
      * same time and would otherwise be able to hand one rider two jobs. That is enough for a
@@ -129,28 +167,40 @@ public class DeliveryService {
             return false;
         }
 
-        Rider rider = riderService.reserve(candidate.get(), delivery.getId());
+        attachRider(delivery, candidate.get(), "auto-assign");
+        return true;
+    }
+
+    /** Shared tail of both assignment paths: reserve the rider, snapshot them onto the job, publish. */
+    private Delivery attachRider(Delivery delivery, Rider candidate, String assignedBy) {
+        Rider rider = riderService.reserve(candidate, delivery.getId());
 
         delivery.setRiderId(rider.getId());
         delivery.setRiderDisplayName(rider.getDisplayName());
         delivery.setRiderPhone(rider.getPhone());
-        delivery.setRiderLocation(rider.getLocation());
+        GeoPoint riderFix = rider.getLocation() != null && rider.getLocation().isReal()
+                ? rider.getLocation() : null;
+        delivery.setRiderLocation(riderFix);
         delivery.setRiderLocationUpdatedAt(rider.getLocationUpdatedAt());
         delivery.setStatus(DeliveryStatus.ASSIGNED);
         delivery.setAssignedAt(Instant.now());
         // Before pickup the rider still has to reach the restaurant, so the ETA spans both legs.
-        applyEstimate(delivery, routeEstimator.distanceKm(rider.getLocation(), delivery.getPickup())
+        // Without a believable rider fix the first leg is measured from the restaurant itself.
+        applyEstimate(delivery, routeEstimator.distanceKm(riderFix != null ? riderFix : delivery.getPickup(), delivery.getPickup())
                 + routeEstimator.distanceKm(delivery.getPickup(), delivery.getDrop()));
-        touch(delivery);
+        Delivery saved = touch(delivery);
 
-        log.info("Delivery {} assigned to rider {} ({} min ETA)",
-                delivery.getId(), rider.getId(), delivery.getEtaMinutes());
-        publisher.publishAssigned(delivery);
-        return true;
+        log.info("Delivery {} assigned to rider {} by {} ({} min ETA)",
+                delivery.getId(), rider.getId(), assignedBy, delivery.getEtaMinutes());
+        publisher.publishAssigned(saved);
+        return saved;
     }
 
-    /** Re-attempts every job that had no rider free when it was created. */
+    /** Re-attempts every job that still has no rider - only meaningful in auto-assign mode. */
     public void sweepUnassigned() {
+        if (!autoAssign) {
+            return;
+        }
         List<Delivery> waiting = deliveryRepository.findByStatus(DeliveryStatus.PENDING_ASSIGNMENT);
         if (waiting.isEmpty()) {
             return;
@@ -163,6 +213,11 @@ public class DeliveryService {
     // Rider app actions
     // ------------------------------------------------------------------
 
+    /**
+     * The rider confirms the assignment. This is the moment the customer's order turns
+     * OUT_FOR_DELIVERY: {@code delivery.started} is published here, not at pickup, because an
+     * online rider is expected to ride the job out - there is no decline path.
+     */
     public Delivery accept(String deliveryId, String riderId) {
         Delivery delivery = requireOwnedBy(deliveryId, riderId);
         if (delivery.getStatus() != DeliveryStatus.ASSIGNED) {
@@ -171,37 +226,9 @@ public class DeliveryService {
         }
         delivery.setStatus(DeliveryStatus.ACCEPTED);
         delivery.setAcceptedAt(Instant.now());
-        return touch(delivery);
-    }
-
-    /**
-     * The rider turns the job down. It goes back into the pool, and this rider is remembered so
-     * the next attempt skips them.
-     */
-    public Delivery decline(String deliveryId, String riderId) {
-        Delivery delivery = requireOwnedBy(deliveryId, riderId);
-        if (delivery.getStatus() != DeliveryStatus.ASSIGNED && delivery.getStatus() != DeliveryStatus.ACCEPTED) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "A delivery can only be declined before pickup (current status: " + delivery.getStatus() + ")");
-        }
-
-        riderService.release(riderId, false);
-        delivery.getDeclinedByRiderIds().add(riderId);
-        delivery.setRiderId(null);
-        delivery.setRiderDisplayName(null);
-        delivery.setRiderPhone(null);
-        delivery.setRiderLocation(null);
-        delivery.setRiderLocationUpdatedAt(null);
-        delivery.setRemainingDistanceKm(null);
-        delivery.setEtaMinutes(null);
-        delivery.setEtaAt(null);
-        delivery.setAssignedAt(null);
-        delivery.setAcceptedAt(null);
-        delivery.setStatus(DeliveryStatus.PENDING_ASSIGNMENT);
         Delivery saved = touch(delivery);
 
-        log.info("Rider {} declined delivery {}; searching for another rider", riderId, deliveryId);
-        tryAssign(saved);
+        publisher.publishStarted(saved);
         return saved;
     }
 
@@ -214,12 +241,11 @@ public class DeliveryService {
         delivery.setStatus(DeliveryStatus.PICKED_UP);
         delivery.setPickedUpAt(Instant.now());
         // The restaurant leg is done; from here the ETA is only the ride to the customer.
-        GeoPoint from = delivery.getRiderLocation() == null ? delivery.getPickup() : delivery.getRiderLocation();
+        GeoPoint from = delivery.getRiderLocation() != null && delivery.getRiderLocation().isReal()
+                ? delivery.getRiderLocation() : delivery.getPickup();
         applyEstimate(delivery, routeEstimator.distanceKm(from, delivery.getDrop()));
-        Delivery saved = touch(delivery);
-
-        publisher.publishStarted(saved);
-        return saved;
+        // No event here: the order already turned OUT_FOR_DELIVERY when the rider accepted.
+        return touch(delivery);
     }
 
     public Delivery markDelivered(String deliveryId, String riderId) {
@@ -241,40 +267,31 @@ public class DeliveryService {
     }
 
     // ------------------------------------------------------------------
-    // Live tracking
+    // Admin actions
     // ------------------------------------------------------------------
 
     /**
-     * Stores a GPS ping and, if the rider is mid-job, refreshes the distance and ETA the customer
-     * sees. The first ping inside the arrival radius also raises {@code delivery.arriving}.
+     * The admin cancels a delivery job. Riders deliberately have no cancel path - only the admin
+     * can call this. The job's slot is given back to the rider (the work was never done), so the
+     * rider becomes assignable again immediately.
      */
-    public Rider recordRiderLocation(String riderId, double latitude, double longitude) {
-        Rider rider = riderService.recordLocation(riderId, latitude, longitude);
+    public synchronized Delivery cancelByAdmin(String deliveryId) {
+        Delivery delivery = getById(deliveryId);
+        if (delivery.getStatus() == DeliveryStatus.CANCELLED) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "This delivery is already cancelled");
+        }
+        if (delivery.getStatus() == DeliveryStatus.DELIVERED) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "A delivered order cannot be cancelled - refund it through Payments instead");
+        }
 
-        deliveryRepository.findByRiderIdAndStatusIn(riderId, LIVE_STATUSES).ifPresent(delivery -> {
-            delivery.setRiderLocation(rider.getLocation());
-            delivery.setRiderLocationUpdatedAt(rider.getLocationUpdatedAt());
-
-            double remainingKm = delivery.getStatus() == DeliveryStatus.PICKED_UP
-                    ? routeEstimator.distanceKm(rider.getLocation(), delivery.getDrop())
-                    : routeEstimator.distanceKm(rider.getLocation(), delivery.getPickup())
-                            + routeEstimator.distanceKm(delivery.getPickup(), delivery.getDrop());
-            applyEstimate(delivery, remainingKm);
-
-            boolean nearlyThere = delivery.getStatus() == DeliveryStatus.PICKED_UP
-                    && remainingKm <= arrivalRadiusKm
-                    && !delivery.isArrivalNotified();
-            if (nearlyThere) {
-                delivery.setArrivalNotified(true);
-            }
-
-            Delivery saved = touch(delivery);
-            if (nearlyThere) {
-                publisher.publishArriving(saved);
-            }
-        });
-
-        return rider;
+        // Give the reserved slot back; release() is a no-op when no rider was attached yet.
+        riderService.release(delivery.getRiderId(), false);
+        delivery.setStatus(DeliveryStatus.CANCELLED);
+        Delivery saved = touch(delivery);
+        log.info("Delivery {} for order {} cancelled by the admin; rider slot freed",
+                delivery.getId(), delivery.getOrderId());
+        return saved;
     }
 
     // ------------------------------------------------------------------
@@ -293,7 +310,10 @@ public class DeliveryService {
     }
 
     public Optional<Delivery> findCurrentAssignment(String riderId) {
-        return deliveryRepository.findByRiderIdAndStatusIn(riderId, LIVE_STATUSES);
+        // A rider can hold several live jobs (assigned while a slot was free); the rider works
+        // them off oldest first, so the oldest live delivery is the current job.
+        return deliveryRepository.findByRiderIdAndStatusInOrderByAssignedAtAsc(riderId, LIVE_STATUSES)
+                .stream().findFirst();
     }
 
     public List<Delivery> findByRider(String riderId) {

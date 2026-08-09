@@ -26,8 +26,15 @@ App.register('/signup', {
             UI.el('label', {}, 'Vehicle type'), vehicleType,
             UI.el('label', {}, 'License number'), licenseNumber
         );
+        // Admin-only field: the secret key from the .env file proves the signer may join as staff.
+        const adminKey = UI.el('input', { type: 'password', autocomplete: 'off' });
+        const adminFields = UI.el('div', {},
+            UI.el('label', {}, 'Admin secret key'), adminKey,
+            UI.el('p', { class: 'muted', style: 'margin:4px 0 0' },
+                'Ask the platform owner for this key - it lives in the .env file.'));
         const syncRiderFields = () => {
             riderFields.style.display = role.value === 'DELIVERYMAN' ? '' : 'none';
+            adminFields.style.display = role.value === 'ADMIN' ? '' : 'none';
         };
         role.addEventListener('change', syncRiderFields);
         syncRiderFields();
@@ -50,6 +57,9 @@ App.register('/signup', {
                         payload.vehicleType = vehicleType.value;
                         payload.licenseNumber = licenseNumber.value.trim();
                     }
+                    if (role.value === 'ADMIN') {
+                        payload.adminKey = adminKey.value;
+                    }
                     await Auth.signup(payload);
                     UI.toast('Account created - welcome!', 'ok');
                     location.hash = Auth.home();
@@ -65,6 +75,7 @@ App.register('/signup', {
             UI.el('label', {}, 'Password'), password,
             UI.el('label', {}, 'I am a'), role,
             riderFields,
+            adminFields,
             UI.el('div', { class: 'form-actions' }, submit)
         );
 

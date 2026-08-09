@@ -13,6 +13,7 @@ import java.util.List;
  */
 public record KitchenOrderResponse(
         String id,
+        Long orderNo,
         String userId,
         String restaurantId,
         List<PricedItem> items,
@@ -27,15 +28,16 @@ public record KitchenOrderResponse(
         String dropAddressLabel,
         Double dropLatitude,
         Double dropLongitude,
+        String customerPhone,
         Instant createdAt,
         Instant acceptedAt,
         Instant readyAt) {
 
     public static KitchenOrderResponse from(KitchenOrder order) {
-        return new KitchenOrderResponse(order.getId(), order.getUserId(), order.getRestaurantId(), order.getItems(),
+        return new KitchenOrderResponse(order.getId(), order.getOrderNo(), order.getUserId(), order.getRestaurantId(), order.getItems(),
                 order.getItemsTotal(), order.getDeliveryFee(), order.getTax(), order.getGrandTotal(),
                 order.getCurrency(), order.getStatus(), order.getStatusReason(), order.getNote(),
                 order.getDropAddressLabel(), order.getDropLatitude(), order.getDropLongitude(),
-                order.getCreatedAt(), order.getAcceptedAt(), order.getReadyAt());
+                order.getCustomerPhone(), order.getCreatedAt(), order.getAcceptedAt(), order.getReadyAt());
     }
 }

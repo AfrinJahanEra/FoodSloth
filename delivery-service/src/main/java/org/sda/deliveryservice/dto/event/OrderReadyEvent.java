@@ -9,12 +9,15 @@ package org.sda.deliveryservice.dto.event;
  */
 public record OrderReadyEvent(
         String orderId,
+        /** Sequential human-facing order number (#123) minted by Order Service; stored on the job. */
+        Long orderNo,
         String userId,
         String restaurantId,
         double pickupLatitude,
         double pickupLongitude,
         double dropLatitude,
         double dropLongitude,
-        String dropAddressLabel
+        String dropAddressLabel,
+        String customerPhone
 ) {
 }

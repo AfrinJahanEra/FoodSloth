@@ -72,6 +72,13 @@ public class PaymentController {
     // Admin
     // ------------------------------------------------------------------
 
+    /** The admin's ledger: every payment on the platform, newest first. */
+    @GetMapping
+    public List<PaymentResponse> getAllPayments(@RequestHeader(value = "X-User-Role", required = false) String role) {
+        requireAdmin(role);
+        return paymentService.getAll().stream().map(PaymentResponse::from).toList();
+    }
+
     @GetMapping("/{id}")
     public PaymentResponse getPayment(@RequestHeader(value = "X-User-Id", required = false) String userId,
                               @RequestHeader(value = "X-User-Role", required = false) String role,

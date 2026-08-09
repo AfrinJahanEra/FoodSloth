@@ -22,6 +22,10 @@ public class Payment {
     @Indexed
     private String orderId;
 
+    /** Sequential human-facing order number (#123) shown in the admin ledger instead of the UUID. */
+    @Field
+    private Long orderNo;
+
     @Field
     private String userId;
 

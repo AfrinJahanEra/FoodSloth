@@ -6,6 +6,7 @@ package org.sda.orderservice.dto.event;
  */
 public record OrderConfirmedEvent(
         String orderId,
+        Long orderNo,
         String userId,
         String restaurantId,
         Double grandTotal

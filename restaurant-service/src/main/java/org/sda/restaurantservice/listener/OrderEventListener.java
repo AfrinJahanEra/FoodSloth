@@ -34,7 +34,7 @@ public class OrderEventListener {
 
     @RabbitListener(queues = Constants.QUEUE_ORDER_CONFIRMED)
     public void onOrderConfirmed(OrderConfirmedEvent event) {
-        kitchenService.onOrderConfirmed(event.orderId());
+        kitchenService.onOrderConfirmed(event.orderId(), event.orderNo());
     }
 
     @RabbitListener(queues = Constants.QUEUE_ORDER_CANCELLED)

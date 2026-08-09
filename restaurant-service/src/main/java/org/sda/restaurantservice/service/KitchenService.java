@@ -93,8 +93,8 @@ public class KitchenService {
         publisher.publishPriced(priced);
     }
 
-    /** Payment cleared, so the ticket joins the kitchen queue. */
-    public void onOrderConfirmed(String orderId) {
+    /** Payment cleared, so the ticket joins the kitchen queue (and keeps its friendly #number). */
+    public void onOrderConfirmed(String orderId, Long orderNo) {
         KitchenOrder ticket = kitchenOrderRepository.findById(orderId).orElse(null);
         if (ticket == null) {
             log.warn("order.confirmed for unknown order {} - no ticket was priced here", orderId);
@@ -103,6 +103,7 @@ public class KitchenService {
         if (ticket.getStatus() != KitchenOrderStatus.AWAITING_PAYMENT) {
             return; // already queued or further along; a redelivery
         }
+        ticket.setOrderNo(orderNo);
         ticket.setStatus(KitchenOrderStatus.QUEUED);
         save(ticket);
         log.info("Order {} is paid for and now on the kitchen queue", orderId);
@@ -174,13 +175,15 @@ public class KitchenService {
         Restaurant restaurant = restaurantService.getRestaurant();
         publisher.publishReady(new OrderReadyEvent(
                 ticket.getId(),
+                ticket.getOrderNo(),
                 ticket.getUserId(),
                 ticket.getRestaurantId(),
                 restaurant.getLatitude(),
                 restaurant.getLongitude(),
                 ticket.getDropLatitude(),
                 ticket.getDropLongitude(),
-                ticket.getDropAddressLabel()));
+                ticket.getDropAddressLabel(),
+                ticket.getCustomerPhone()));
         return ticket;
     }
 
@@ -224,6 +227,7 @@ public class KitchenService {
         ticket.setDropAddressLabel(checkout.deliveryAddress());
         ticket.setDropLatitude(checkout.deliveryLatitude());
         ticket.setDropLongitude(checkout.deliveryLongitude());
+        ticket.setCustomerPhone(checkout.contactPhone());
         ticket.setStatus(KitchenOrderStatus.AWAITING_PAYMENT);
         ticket.setUpdatedAt(Instant.now());
         return ticket;

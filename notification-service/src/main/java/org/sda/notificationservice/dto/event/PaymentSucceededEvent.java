@@ -11,6 +11,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record PaymentSucceededEvent(
         String orderId,
+        Long orderNo,
         String userId,
         String paymentId,
         Long amountMinor,

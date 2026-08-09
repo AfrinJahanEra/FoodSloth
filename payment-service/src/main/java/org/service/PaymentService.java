@@ -91,6 +91,7 @@ public class PaymentService {
 
         Payment payment = new Payment();
         payment.setOrderId(event.orderId());
+        payment.setOrderNo(event.orderNo());
         payment.setUserId(event.userId());
         payment.setCurrency(normaliseCurrency(event.currency()));
         payment.setPaymentMethod(event.paymentMethod() == null ? "CARD" : event.paymentMethod());
@@ -268,6 +269,11 @@ public class PaymentService {
 
     public List<Payment> getByUserId(String userId) {
         return paymentRepository.findByUserId(userId);
+    }
+
+    /** Every payment on the platform, newest first - the admin's ledger. */
+    public List<Payment> getAll() {
+        return paymentRepository.findAllByOrderByCreatedAtDesc();
     }
 
     public Payment requireOwnedBy(String userId, Payment payment) {

@@ -3,7 +3,9 @@ server:
 
 spring:
   config:
-    import: "optional:file:./secrets.yml"
+    # secrets.yml holds the real Stripe keys (gitignored). Both paths are tried so it works
+    # whether IntelliJ's working directory is the module folder or the project root.
+    import: "optional:file:./secrets.yml,optional:file:./payment-service/secrets.yml"
 
   application:
     name: payment-service

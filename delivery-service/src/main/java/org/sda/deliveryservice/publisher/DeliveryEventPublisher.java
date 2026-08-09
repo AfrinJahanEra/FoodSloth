@@ -1,6 +1,5 @@
 package org.sda.deliveryservice.publisher;
 
-import org.sda.deliveryservice.dto.event.DeliveryArrivingEvent;
 import org.sda.deliveryservice.dto.event.DeliveryAssignedEvent;
 import org.sda.deliveryservice.dto.event.DeliveryCompletedEvent;
 import org.sda.deliveryservice.dto.event.DeliveryStartedEvent;
@@ -29,6 +28,7 @@ public class DeliveryEventPublisher {
     public void publishAssigned(Delivery delivery) {
         DeliveryAssignedEvent event = new DeliveryAssignedEvent(
                 delivery.getOrderId(),
+                delivery.getOrderNo(),
                 delivery.getUserId(),
                 delivery.getId(),
                 delivery.getRiderId(),
@@ -41,6 +41,7 @@ public class DeliveryEventPublisher {
     public void publishStarted(Delivery delivery) {
         DeliveryStartedEvent event = new DeliveryStartedEvent(
                 delivery.getOrderId(),
+                delivery.getOrderNo(),
                 delivery.getUserId(),
                 delivery.getId(),
                 delivery.getRiderId(),
@@ -48,21 +49,10 @@ public class DeliveryEventPublisher {
         send(Constants.RK_DELIVERY_STARTED, event, delivery.getOrderId());
     }
 
-    public void publishArriving(Delivery delivery) {
-        DeliveryArrivingEvent event = new DeliveryArrivingEvent(
-                delivery.getOrderId(),
-                delivery.getUserId(),
-                delivery.getId(),
-                delivery.getRiderId(),
-                delivery.getRiderDisplayName(),
-                delivery.getRemainingDistanceKm(),
-                delivery.getEtaMinutes());
-        send(Constants.RK_DELIVERY_ARRIVING, event, delivery.getOrderId());
-    }
-
     public void publishCompleted(Delivery delivery) {
         DeliveryCompletedEvent event = new DeliveryCompletedEvent(
                 delivery.getOrderId(),
+                delivery.getOrderNo(),
                 delivery.getUserId(),
                 delivery.getId(),
                 delivery.getRiderId(),

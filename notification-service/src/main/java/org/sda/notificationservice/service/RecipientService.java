@@ -7,11 +7,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
-import java.util.List;
 import java.util.Optional;
 
 /**
- * Owns the Recipient aggregate: contact addresses, device tokens and channel preferences.
+ * Owns the Recipient aggregate: device tokens and the push switch.
  *
  * <p>The row is created on first use, keyed by the user id the gateway puts in {@code X-User-Id}, so
  * registering a recipient never involves calling User Service.
@@ -44,30 +43,10 @@ public class RecipientService {
         return save(recipient);
     }
 
-    public Recipient updateContact(String userId, String email, String phone) {
-        Recipient recipient = getOrCreate(userId);
-        if (email != null && !email.isBlank()) {
-            recipient.setEmail(email.trim());
-        }
-        if (phone != null && !phone.isBlank()) {
-            recipient.setPhone(phone.trim());
-        }
-        return save(recipient);
-    }
-
-    public Recipient updatePreferences(String userId, Boolean push, Boolean email, Boolean sms, Boolean marketing) {
+    public Recipient updatePreferences(String userId, Boolean push) {
         Recipient recipient = getOrCreate(userId);
         if (push != null) {
             recipient.setPushEnabled(push);
-        }
-        if (email != null) {
-            recipient.setEmailEnabled(email);
-        }
-        if (sms != null) {
-            recipient.setSmsEnabled(sms);
-        }
-        if (marketing != null) {
-            recipient.setMarketingOptIn(marketing);
         }
         return save(recipient);
     }
@@ -85,11 +64,6 @@ public class RecipientService {
         return recipientRepository.findById(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                         "No notification profile yet; register a device or contact details first"));
-    }
-
-    /** Audience of a promotional broadcast. */
-    public List<Recipient> findMarketingAudience() {
-        return recipientRepository.findByMarketingOptInIsTrue();
     }
 
     private Recipient getOrCreate(String userId) {

@@ -23,7 +23,7 @@ const Auth = {
 
     logout() {
         API.clearSession();
-        location.hash = '#/login';
+        location.hash = '#/';
     },
 
     /** Where a user lands after signing in, by role. */

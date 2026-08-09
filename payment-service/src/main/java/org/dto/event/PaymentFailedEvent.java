@@ -8,6 +8,8 @@ package org.dto.event;
  */
 public record PaymentFailedEvent(
         String orderId,
+        /** Sequential human-facing order number (#123) for the failure message. */
+        Long orderNo,
         String userId,
         String paymentId,
         String reason

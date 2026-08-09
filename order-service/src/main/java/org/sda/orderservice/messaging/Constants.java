@@ -28,6 +28,9 @@ public final class Constants {
     /** The kitchen took the order on. */
     public static final String RK_ORDER_ACCEPTED = "restaurant.order-accepted";
 
+    /** The food is packed and waiting for a rider. */
+    public static final String RK_ORDER_READY = "restaurant.order-ready";
+
     /** The kitchen turned the order down. */
     public static final String RK_ORDER_REJECTED = "restaurant.order-rejected";
 
@@ -46,6 +49,7 @@ public final class Constants {
     public static final String QUEUE_ORDER_PRICED = "order.restaurant-order-priced.queue";
     public static final String QUEUE_ORDER_UNAVAILABLE = "order.restaurant-order-unavailable.queue";
     public static final String QUEUE_ORDER_ACCEPTED = "order.restaurant-order-accepted.queue";
+    public static final String QUEUE_ORDER_READY = "order.restaurant-order-ready.queue";
     public static final String QUEUE_ORDER_REJECTED = "order.restaurant-order-rejected.queue";
     public static final String QUEUE_PAYMENT_SUCCEEDED = "order.payment-succeeded.queue";
     public static final String QUEUE_PAYMENT_FAILED = "order.payment-failed.queue";

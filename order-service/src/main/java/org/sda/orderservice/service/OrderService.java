@@ -12,9 +12,15 @@ import org.sda.orderservice.entity.PaymentMethod;
 import org.sda.orderservice.messaging.Constants;
 import org.sda.orderservice.publisher.OrderEventPublisher;
 import org.sda.orderservice.repository.OrderRepository;
+import org.bson.Document;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.data.mongodb.core.FindAndModifyOptions;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -53,12 +59,14 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final OrderEventPublisher eventPublisher;
     private final RabbitTemplate rabbitTemplate;
+    private final MongoTemplate mongoTemplate;
 
     public OrderService(OrderRepository orderRepository, OrderEventPublisher eventPublisher,
-                        RabbitTemplate rabbitTemplate) {
+                        RabbitTemplate rabbitTemplate, MongoTemplate mongoTemplate) {
         this.orderRepository = orderRepository;
         this.eventPublisher = eventPublisher;
         this.rabbitTemplate = rabbitTemplate;
+        this.mongoTemplate = mongoTemplate;
     }
 
     // ------------------------------------------------------------------
@@ -97,6 +105,7 @@ public class OrderService {
 
         Order order = new Order();
         order.setId(unavailable.orderId());
+        order.setOrderNo(mintOrderNo());
         order.setUserId(unavailable.userId());
         order.setRestaurantId(unavailable.restaurantId());
         order.setStatus(OrderStatus.REJECTED);
@@ -109,7 +118,10 @@ public class OrderService {
     }
 
     public void markConfirmed(String orderId) {
-        transition(orderId, OrderStatus.PENDING_PAYMENT, OrderStatus.CONFIRMED, "payment.succeeded");
+        // PAYMENT_FAILED is accepted too: a later retry can succeed (money taken) and the
+        // succeeded event is authoritative - the order must proceed, not stay failed.
+        transition(orderId, OrderStatus.CONFIRMED, "payment.succeeded",
+                OrderStatus.PENDING_PAYMENT, OrderStatus.PAYMENT_FAILED);
         Order order = orderRepository.findById(orderId).orElse(null);
         if (order != null && order.getStatus() == OrderStatus.CONFIRMED) {
             eventPublisher.publishOrderConfirmed(order);
@@ -122,6 +134,11 @@ public class OrderService {
 
     public void markPreparing(String orderId) {
         transition(orderId, OrderStatus.CONFIRMED, OrderStatus.PREPARING, "restaurant.order-accepted");
+    }
+
+    /** The kitchen packed the food; the customer sees READY until a rider picks it up. */
+    public void markReady(String orderId) {
+        transition(orderId, OrderStatus.PREPARING, OrderStatus.READY, "restaurant.order-ready");
     }
 
     /**
@@ -151,7 +168,10 @@ public class OrderService {
     }
 
     public void markOutForDelivery(String orderId) {
-        transition(orderId, OrderStatus.PREPARING, OrderStatus.OUT_FOR_DELIVERY, "delivery.started");
+        // Normally the order is READY by now; PREPARING is accepted too in case the ready
+        // event is still sitting in this queue when the rider's pickup arrives.
+        transition(orderId, OrderStatus.OUT_FOR_DELIVERY, "delivery.started",
+                OrderStatus.READY, OrderStatus.PREPARING);
     }
 
     public void markDelivered(String orderId) {
@@ -235,6 +255,7 @@ public class OrderService {
     private Order buildOrderFrom(OrderPricedEvent priced) {
         Order order = new Order();
         order.setId(priced.orderId());
+        order.setOrderNo(mintOrderNo());
         order.setUserId(priced.userId());
         order.setRestaurantId(priced.restaurantId());
         order.setRestaurantName(priced.restaurantName());
@@ -275,22 +296,42 @@ public class OrderService {
      * out of order (a redelivery, or an event for a stage the order has already passed).
      */
     private void transition(String orderId, OrderStatus expected, OrderStatus next, String source) {
+        transition(orderId, next, source, expected);
+    }
+
+    /**
+     * Moves an order to {@code next} when its current status is any of {@code expected}, logging
+     * and ignoring the event when it arrives out of order (a redelivery, or an event for a stage
+     * the order has already passed).
+     */
+    private void transition(String orderId, OrderStatus next, String source, OrderStatus... expected) {
         Order order = orderRepository.findById(orderId).orElse(null);
         if (order == null) {
             log.warn("{} for unknown order {}", source, orderId);
             return;
         }
-        if (order.getStatus() != expected) {
-            log.warn("Ignoring {} for order {} in status {}", source, orderId, order.getStatus());
-            return;
+        for (OrderStatus status : expected) {
+            if (order.getStatus() == status) {
+                order.setStatus(next);
+                order.setUpdatedAt(Instant.now());
+                orderRepository.save(order);
+                return;
+            }
         }
-        order.setStatus(next);
-        order.setUpdatedAt(Instant.now());
-        orderRepository.save(order);
+        log.warn("Ignoring {} for order {} in status {}", source, orderId, order.getStatus());
     }
 
     private BigDecimal money(Double value) {
         return value == null ? BigDecimal.ZERO : BigDecimal.valueOf(value);
+    }
+
+    /** Atomic sequential order number (#1, #2, ...) shown in the UI instead of the UUID. */
+    private long mintOrderNo() {
+        Query query = new Query(Criteria.where("_id").is("order-no"));
+        Update update = new Update().inc("seq", 1);
+        Document counter = mongoTemplate.findAndModify(query, update,
+                FindAndModifyOptions.options().upsert(true).returnNew(true), Document.class, "counters");
+        return ((Number) counter.get("seq")).longValue();
     }
 
     private Order findOrderOrThrow(String id) {
@@ -306,7 +347,7 @@ public class OrderService {
 
     private OrderResponse toResponse(Order order) {
         return new OrderResponse(
-                order.getId(), order.getUserId(), order.getRestaurantId(), order.getRestaurantName(),
+                order.getId(), order.getOrderNo(), order.getUserId(), order.getRestaurantId(), order.getRestaurantName(),
                 order.getItems(), order.getSubtotal(), order.getDeliveryCharge(), order.getTax(),
                 order.getGrandTotal(), order.getCurrency(), order.getPaymentMethod(),
                 order.getDeliveryAddress(), order.getDeliveryLatitude(), order.getDeliveryLongitude(),

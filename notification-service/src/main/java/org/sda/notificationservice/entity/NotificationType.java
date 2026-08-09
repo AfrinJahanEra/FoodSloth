@@ -18,5 +18,6 @@ public enum NotificationType {
     RIDER_ASSIGNED,
     OUT_FOR_DELIVERY,
     RIDER_ARRIVING,
+    /** Legacy: promotional campaigns were removed; kept so old stored notifications still load. */
     PROMOTION
 }

@@ -19,11 +19,14 @@ public record RiderResponse(
         GeoPoint location,
         Instant locationUpdatedAt,
         String activeDeliveryId,
-        int completedDeliveries) {
+        int completedDeliveries,
+        /** Daily slots already used; a rider is only assignable while this is below the cap. */
+        int slotsUsedToday,
+        int slotsRemainingToday) {
 
-    public static RiderResponse from(Rider rider) {
+    public static RiderResponse from(Rider rider, int slotsUsedToday, int slotsRemainingToday) {
         return new RiderResponse(rider.getId(), rider.getDisplayName(), rider.getPhone(), rider.getVehicleType(),
                 rider.getStatus(), rider.getLocation(), rider.getLocationUpdatedAt(), rider.getActiveDeliveryId(),
-                rider.getCompletedDeliveries());
+                rider.getCompletedDeliveries(), slotsUsedToday, slotsRemainingToday);
     }
 }

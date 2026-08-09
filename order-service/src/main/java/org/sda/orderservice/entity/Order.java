@@ -29,6 +29,11 @@ public class Order {
     @Id
     private String id;
 
+    /** Sequential human-facing number shown as #123 in the UI; the UUID id stays the correlation key. */
+    @Field
+    @Indexed(unique = true, sparse = true)
+    private Long orderNo;
+
     @Field
     @Indexed
     private String userId;

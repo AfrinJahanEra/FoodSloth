@@ -125,6 +125,7 @@ public class CartService {
                 request.deliveryAddress(),
                 request.deliveryLatitude(),
                 request.deliveryLongitude(),
+                request.contactPhone(),
                 request.paymentMethod(),
                 request.note());
 

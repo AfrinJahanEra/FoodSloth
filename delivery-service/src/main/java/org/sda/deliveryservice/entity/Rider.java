@@ -8,6 +8,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
 
 import java.time.Instant;
+import java.time.LocalDate;
 
 /**
  * A rider as Delivery Service knows them.
@@ -52,6 +53,16 @@ public class Rider {
 
     @Field
     private int completedDeliveries;
+
+    // ---- Daily slot cap ----
+
+    /** Deliveries taken today; {@code slotDate} says which day the counter belongs to. */
+    @Field
+    private int deliveriesToday;
+
+    /** The calendar day {@code deliveriesToday} counts for; a new day resets the cap. */
+    @Field
+    private LocalDate slotDate;
 
     @Field
     private Instant createdAt = Instant.now();

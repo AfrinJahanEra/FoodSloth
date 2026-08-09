@@ -10,6 +10,7 @@ package org.sda.orderservice.dto.event;
  */
 public record PaymentRequestedEvent(
         String orderId,
+        Long orderNo,
         String userId,
         Double amount,
         String currency,

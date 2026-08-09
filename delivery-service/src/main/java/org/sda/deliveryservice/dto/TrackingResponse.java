@@ -13,6 +13,7 @@ import java.time.Instant;
  */
 public record TrackingResponse(
         String orderId,
+        Long orderNo,
         String deliveryId,
         DeliveryStatus status,
         String riderId,
@@ -34,6 +35,7 @@ public record TrackingResponse(
     public static TrackingResponse from(Delivery delivery) {
         return new TrackingResponse(
                 delivery.getOrderId(),
+                delivery.getOrderNo(),
                 delivery.getId(),
                 delivery.getStatus(),
                 delivery.getRiderId(),

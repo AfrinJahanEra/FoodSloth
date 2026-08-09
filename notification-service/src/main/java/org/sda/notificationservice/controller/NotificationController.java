@@ -1,12 +1,9 @@
 package org.sda.notificationservice.controller;
 
-import org.sda.notificationservice.dto.BroadcastRequest;
-import org.sda.notificationservice.dto.ContactRequest;
 import org.sda.notificationservice.dto.NotificationResponse;
 import org.sda.notificationservice.dto.PreferencesRequest;
 import org.sda.notificationservice.dto.RecipientResponse;
 import org.sda.notificationservice.dto.RegisterDeviceRequest;
-import org.sda.notificationservice.publisher.BroadcastPublisher;
 import org.sda.notificationservice.service.InboxService;
 import org.sda.notificationservice.service.RecipientService;
 import org.springframework.http.HttpStatus;
@@ -46,18 +43,15 @@ public class NotificationController {
 
     private final RecipientService recipientService;
     private final InboxService inboxService;
-    private final BroadcastPublisher broadcastPublisher;
 
     public NotificationController(RecipientService recipientService,
-                                  InboxService inboxService,
-                                  BroadcastPublisher broadcastPublisher) {
+                                  InboxService inboxService) {
         this.recipientService = recipientService;
         this.inboxService = inboxService;
-        this.broadcastPublisher = broadcastPublisher;
     }
 
     // ------------------------------------------------------------------
-    // Where and how to reach me
+    // How to reach me (push is the only channel)
     // ------------------------------------------------------------------
 
     /** The mobile app calls this after every sign-in with the token it got from the OS. */
@@ -73,18 +67,11 @@ public class NotificationController {
         return RecipientResponse.from(recipientService.unregisterDevice(requireAuthenticated(userId), deviceToken));
     }
 
-    /** The email and phone the customer wants receipts and alerts on. */
-    @PostMapping("/contact")
-    public RecipientResponse updateContact(@RequestHeader(value = "X-User-Id", required = false) String userId,
-                                   @RequestBody ContactRequest request) {
-        return RecipientResponse.from(recipientService.updateContact(requireAuthenticated(userId), request.email(), request.phone()));
-    }
-
     @PutMapping("/preferences")
     public RecipientResponse updatePreferences(@RequestHeader(value = "X-User-Id", required = false) String userId,
                                        @RequestBody PreferencesRequest request) {
-        return RecipientResponse.from(recipientService.updatePreferences(requireAuthenticated(userId), request.pushEnabled(),
-                request.emailEnabled(), request.smsEnabled(), request.marketingOptIn()));
+        return RecipientResponse.from(recipientService.updatePreferences(requireAuthenticated(userId),
+                request.pushEnabled()));
     }
 
     @GetMapping("/preferences")
@@ -119,26 +106,8 @@ public class NotificationController {
     }
 
     // ------------------------------------------------------------------
-    // Marketing and support
+    // Support
     // ------------------------------------------------------------------
-
-    /**
-     * Starts a promotional campaign. Returns 202 as soon as it is on the broker - the fan-out to
-     * opted-in customers then happens in the background, so a large campaign does not hold the
-     * request open and is not lost if this service restarts mid-send.
-     */
-    @PostMapping("/broadcast")
-    public ResponseEntity<Map<String, String>> broadcast(
-            @RequestHeader(value = "X-User-Role", required = false) String role,
-            @RequestBody BroadcastRequest request) {
-        requireAdmin(role);
-        if (request.title() == null || request.title().isBlank()
-                || request.body() == null || request.body().isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "title and body are required");
-        }
-        String campaignId = broadcastPublisher.publish(request.title(), request.body(), request.channels());
-        return ResponseEntity.accepted().body(Map.of("campaignId", campaignId));
-    }
 
     /** Support view: every message sent about one order, and what came of each. */
     @GetMapping("/order/{orderId}")

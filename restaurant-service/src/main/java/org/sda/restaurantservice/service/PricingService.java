@@ -24,17 +24,27 @@ import java.util.stream.Collectors;
 @Service
 public class PricingService {
 
+    /** Straight-line distance is stretched by this factor - roads are never straight. */
+    private static final double ROAD_FACTOR = 1.3;
+    private static final double EARTH_RADIUS_KM = 6371.0;
+
     private final RestaurantService restaurantService;
-    private final double deliveryFee;
+    private final double baseDeliveryFee;
+    private final double deliveryFeePerKm;
+    private final double maxDeliveryFee;
     private final double taxRate;
     private final String currency;
 
     public PricingService(RestaurantService restaurantService,
-                          @Value("${restaurant.delivery-fee}") double deliveryFee,
+                          @Value("${restaurant.delivery-fee}") double baseDeliveryFee,
+                          @Value("${restaurant.delivery-fee-per-km}") double deliveryFeePerKm,
+                          @Value("${restaurant.delivery-fee-max}") double maxDeliveryFee,
                           @Value("${restaurant.tax-rate}") double taxRate,
                           @Value("${restaurant.currency}") String currency) {
         this.restaurantService = restaurantService;
-        this.deliveryFee = deliveryFee;
+        this.baseDeliveryFee = baseDeliveryFee;
+        this.deliveryFeePerKm = deliveryFeePerKm;
+        this.maxDeliveryFee = maxDeliveryFee;
         this.taxRate = taxRate;
         this.currency = currency;
     }
@@ -80,8 +90,9 @@ public class PricingService {
         }
 
         itemsTotal = round(itemsTotal);
+        double fee = deliveryFeeFor(restaurant, checkout);
         double tax = round(itemsTotal * taxRate);
-        double grandTotal = round(itemsTotal + deliveryFee + tax);
+        double grandTotal = round(itemsTotal + fee + tax);
 
         return new OrderPricedEvent(
                 checkout.orderId(),
@@ -92,7 +103,7 @@ public class PricingService {
                 restaurant.getLongitude(),
                 priced,
                 itemsTotal,
-                deliveryFee,
+                fee,
                 tax,
                 grandTotal,
                 currency,
@@ -101,6 +112,36 @@ public class PricingService {
                 checkout.deliveryLongitude(),
                 checkout.paymentMethod(),
                 checkout.note());
+    }
+
+    /**
+     * Like a real delivery app: a base (flag-fall) fee plus a per-km rate over the distance between
+     * the restaurant and the drop-off. When either location has no coordinates the base fee applies,
+     * so an address saved without a map pin still gets a sensible price.
+     */
+    private double deliveryFeeFor(Restaurant restaurant, CartCheckedOutEvent checkout) {
+        if (!hasLocation(restaurant.getLatitude(), restaurant.getLongitude())
+                || !hasLocation(checkout.deliveryLatitude(), checkout.deliveryLongitude())) {
+            return baseDeliveryFee;
+        }
+        double roadKm = haversineKm(restaurant.getLatitude(), restaurant.getLongitude(),
+                checkout.deliveryLatitude(), checkout.deliveryLongitude()) * ROAD_FACTOR;
+        return Math.min(maxDeliveryFee, round(baseDeliveryFee + roadKm * deliveryFeePerKm));
+    }
+
+    /** null or (0,0) means "no coordinates were captured" - not a real place. */
+    private boolean hasLocation(Double lat, Double lon) {
+        return lat != null && lon != null && (lat != 0.0 || lon != 0.0);
+    }
+
+    /** Great-circle distance in kilometres (haversine). */
+    private static double haversineKm(double lat1, double lon1, double lat2, double lon2) {
+        double dLat = Math.toRadians(lat2 - lat1);
+        double dLon = Math.toRadians(lon2 - lon1);
+        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
+                + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
+                * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        return 2 * EARTH_RADIUS_KM * Math.asin(Math.sqrt(a));
     }
 
     /** Money is kept to two decimals so the total always matches the sum of the lines shown. */

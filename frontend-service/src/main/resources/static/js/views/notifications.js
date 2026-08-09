@@ -1,11 +1,11 @@
 /**
- * Notification inbox + delivery-channel settings (device token, email/SMS,
- * per-channel switches).
+ * Notification inbox + push settings. Push is the only channel on the platform,
+ * so all that matters here is the device tokens and the push switch.
  */
 'use strict';
 
 App.register('/notifications', {
-    roles: ['CUSTOMER'],
+    roles: ['CUSTOMER', 'ADMIN', 'DELIVERYMAN'],
 
     async render() {
         UI.render(UI.el('h1', {}, 'Notifications'), UI.loading());
@@ -15,22 +15,33 @@ App.register('/notifications', {
             API.call('/notifications/preferences').catch(() => ({}))
         ]);
 
+        const head = UI.el('div', { class: 'admin-head' },
+            UI.el('div', {},
+                UI.el('h1', {}, 'Notifications'),
+                UI.el('div', { class: 'sub' }, 'Push notifications only - order, payment and delivery updates')));
+
         // ---- Inbox ----
-        const inboxCard = UI.el('div', { class: 'card' }, UI.el('h2', {}, 'Inbox'));
+        const TYPE_ICON = {
+            ORDER_CONFIRMED: 'checkcircle', ORDER_ACCEPTED: 'chefhat', ORDER_READY: 'package', ORDER_DELIVERED: 'gift',
+            ORDER_CANCELLED: 'xcircle', ORDER_REJECTED: 'ban', PAYMENT_RECEIPT: 'receipt', PAYMENT_FAILED: 'creditcard',
+            RIDER_ASSIGNED: 'bike', OUT_FOR_DELIVERY: 'truck', RIDER_ARRIVING: 'mappin', PROMOTION: 'megaphone'
+        };
+
+        const inboxCard = UI.el('div', { class: 'card' });
         const drawInbox = (items) => {
-            inboxCard.replaceChildren(UI.el('h2', {}, 'Inbox'));
+            inboxCard.replaceChildren(UI.el('h2', {}, 'Inbox (' + items.length + ')'));
             if (!items.length) {
-                inboxCard.append(UI.el('p', { class: 'muted' }, 'Nothing here yet - order something!'));
+                inboxCard.append(UI.el('div', { class: 'empty' },
+                    UI.el('div', { class: 'big' }, Icon.of('bell', 34)),
+                    Auth.role === 'ADMIN' ? 'Nothing here yet - new orders and finished deliveries will appear.'
+                        : Auth.role === 'DELIVERYMAN' ? 'Nothing here yet - new delivery assignments will appear.'
+                            : 'Nothing here yet - order something!'));
                 return;
             }
             for (const n of items) {
-                inboxCard.append(UI.el('div', { class: 'line-item' },
-                    UI.el('div', {},
-                        UI.el('b', { style: n.read ? '' : 'font-weight:800' }, n.title || n.type),
-                        UI.el('div', { class: 'muted' }, n.body || ''),
-                        UI.el('div', { class: 'muted' }, UI.time(n.createdAt) + ' · ' + (n.channel || '') +
-                            (n.orderId ? ' · order ' + n.orderId.slice(0, 8) + '…' : ''))),
-                    n.read ? UI.chip('READ') : UI.el('button', {
+                const actions = [];
+                if (!n.read) {
+                    actions.push(UI.el('button', {
                         class: 'btn-ghost btn-small',
                         onclick: async () => {
                             try {
@@ -40,7 +51,19 @@ App.register('/notifications', {
                                 App.refreshUnreadBadge();
                             } catch (err) { UI.error(err); }
                         }
-                    }, 'Mark read')));
+                    }, 'Mark read'));
+                }
+                inboxCard.append(UI.el('div', { class: 'line-item' },
+                    UI.el('div', { style: 'display:flex;align-items:flex-start;gap:12px' },
+                        UI.el('div', { class: 'dot ' + (n.read ? '' : 'brand') }, Icon.of(TYPE_ICON[n.type] || 'bell', 16)),
+                        UI.el('div', {},
+                            UI.el('div', { style: 'display:flex;align-items:center;gap:8px' },
+                                UI.el('b', { style: n.read ? 'font-weight:600' : 'font-weight:800' }, n.title || n.type),
+                                n.read ? null : UI.el('span', { class: 'chip err' }, 'New')),
+                            UI.el('div', { class: 'muted' }, n.body || ''),
+                            UI.el('div', { class: 'muted' }, UI.time(n.createdAt) +
+                                (n.orderId ? ' · order ' + n.orderId.slice(0, 8) + '…' : '')))),
+                    UI.el('div', { style: 'display:flex;gap:8px' }, ...actions)));
             }
             inboxCard.append(UI.el('div', { class: 'form-actions' },
                 UI.el('button', {
@@ -57,66 +80,79 @@ App.register('/notifications', {
         };
         drawInbox(inbox);
 
-        // ---- Settings ----
+        // ---- Push preferences ----
         const push = UI.el('input', { type: 'checkbox' }); push.checked = prefs.pushEnabled !== false;
-        const email = UI.el('input', { type: 'checkbox' }); email.checked = prefs.emailEnabled !== false;
-        const sms = UI.el('input', { type: 'checkbox' }); sms.checked = !!prefs.smsEnabled;
-        const marketing = UI.el('input', { type: 'checkbox' }); marketing.checked = !!prefs.marketingOptIn;
-
-        const savePrefs = async () => {
-            try {
-                await API.call('/notifications/preferences', {
-                    method: 'PUT',
-                    body: {
-                        pushEnabled: push.checked, emailEnabled: email.checked,
-                        smsEnabled: sms.checked, marketingOptIn: marketing.checked
-                    }
-                });
-                UI.toast('Preferences saved', 'ok');
-            } catch (err) { UI.error(err); }
-        };
 
         const settingsCard = UI.el('div', { class: 'card' },
-            UI.el('h2', {}, 'How we reach you'),
-            UI.el('div', { class: 'line-item' }, UI.el('span', {}, 'Push notifications'), push),
-            UI.el('div', { class: 'line-item' }, UI.el('span', {}, 'Email receipts'), email),
-            UI.el('div', { class: 'line-item' }, UI.el('span', {}, 'SMS alerts'), sms),
-            UI.el('div', { class: 'line-item' }, UI.el('span', {}, 'Promotional messages'), marketing),
+            UI.el('h2', {}, 'Push settings'),
+            UI.el('div', { class: 'line-item' },
+                UI.el('div', {},
+                    UI.el('b', {}, 'Push notifications'),
+                    UI.el('div', { class: 'muted' }, 'Order, payment and delivery updates on your device')),
+                push),
             UI.el('div', { class: 'form-actions' },
-                UI.el('button', { onclick: savePrefs }, 'Save preferences')));
+                UI.el('button', {
+                    onclick: async () => {
+                        try {
+                            await API.call('/notifications/preferences', {
+                                method: 'PUT',
+                                body: { pushEnabled: push.checked }
+                            });
+                            UI.toast('Preferences saved', 'ok');
+                        } catch (err) { UI.error(err); }
+                    }
+                }, 'Save preferences')));
 
-        // ---- Contact + device ----
-        const contactEmail = UI.el('input', { type: 'email', value: prefs.email || '' });
-        const contactPhone = UI.el('input', { type: 'text', value: prefs.phone || '' });
-        const deviceToken = UI.el('input', { type: 'text', placeholder: 'token from FCM/APNs' });
+        // ---- Device tokens ----
+        const deviceToken = UI.el('input', { type: 'text', placeholder: 'Token from FCM / APNs' });
+        const tokensBox = UI.el('div', {});
+        const mask = (token) => token.length <= 6 ? '•••' : '•••' + token.slice(-6);
+        const drawTokens = () => {
+            tokensBox.replaceChildren();
+            const tokens = prefs.deviceTokens || [];
+            if (!tokens.length) {
+                tokensBox.append(UI.el('p', { class: 'muted' }, 'No device registered yet - push needs a token.'));
+                return;
+            }
+            for (const token of tokens) {
+                tokensBox.append(UI.el('div', { class: 'line-item' },
+                    UI.el('span', { style: 'display:inline-flex;align-items:center;gap:7px' },
+                        Icon.of('phone', 15), mask(token)),
+                    UI.el('button', {
+                        class: 'btn-danger btn-small',
+                        onclick: async () => {
+                            try {
+                                const updated = await API.call('/notifications/devices/' + encodeURIComponent(token), { method: 'DELETE' });
+                                prefs.deviceTokens = updated.deviceTokens || [];
+                                UI.toast('Device unregistered', 'ok');
+                                drawTokens();
+                            } catch (err) { UI.error(err); }
+                        }
+                    }, 'Remove')));
+            }
+        };
+        drawTokens();
 
-        const contactCard = UI.el('div', { class: 'card' },
-            UI.el('h2', {}, 'Contact details & device'),
-            UI.el('label', {}, 'Receipt email'), contactEmail,
-            UI.el('label', {}, 'Alert phone'), contactPhone,
+        const deviceCard = UI.el('div', { class: 'card' },
+            UI.el('h2', {}, 'Your devices'),
+            tokensBox,
+            UI.el('label', {}, 'Register a new device'),
+            deviceToken,
             UI.el('div', { class: 'form-actions' }, UI.el('button', {
                 class: 'btn-ghost',
                 onclick: async () => {
+                    const token = deviceToken.value.trim();
+                    if (!token) { UI.toast('Paste the device token first', 'err'); return; }
                     try {
-                        await API.call('/notifications/contact', {
-                            body: { email: contactEmail.value.trim() || null, phone: contactPhone.value.trim() || null }
-                        });
-                        UI.toast('Contact details saved', 'ok');
-                    } catch (err) { UI.error(err); }
-                }
-            }, 'Save contact')),
-            UI.el('label', {}, 'Push device token'), deviceToken,
-            UI.el('div', { class: 'form-actions' }, UI.el('button', {
-                class: 'btn-ghost',
-                onclick: async () => {
-                    try {
-                        await API.call('/notifications/devices', { body: { deviceToken: deviceToken.value.trim() } });
+                        const updated = await API.call('/notifications/devices', { body: { deviceToken: token } });
+                        prefs.deviceTokens = updated.deviceTokens || [];
+                        deviceToken.value = '';
                         UI.toast('Device registered', 'ok');
+                        drawTokens();
                     } catch (err) { UI.error(err); }
                 }
             }, 'Register device')));
 
-        UI.render(UI.el('h1', {}, 'Notifications'), inboxCard,
-            UI.el('div', { class: 'row' }, settingsCard, contactCard));
+        UI.render(head, inboxCard, UI.el('div', { class: 'row' }, settingsCard, deviceCard));
     }
 });

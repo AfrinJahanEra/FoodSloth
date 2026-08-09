@@ -13,6 +13,8 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record PaymentRequestedEvent(
         String orderId,
+        /** Sequential human-facing order number (#123) minted by Order Service; stored and forwarded. */
+        Long orderNo,
         String userId,
         Double amount,
         String currency,

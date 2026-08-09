@@ -28,7 +28,8 @@ public class UserController {
     @PostMapping("/signup")
     public AuthResponse signup(@RequestBody SignupRequest request) {
         User user = userService.signup(request.name(), request.email(), request.phone(), request.password(),
-                request.role(), request.vehicleType(), request.licenseNumber(), request.restaurantId());
+                request.role(), request.vehicleType(), request.licenseNumber(), request.restaurantId(),
+                request.adminKey());
         return new AuthResponse(userService.issueToken(user), UserResponse.from(user));
     }
 
@@ -91,7 +92,7 @@ public class UserController {
     }
 
     public record SignupRequest(String name, String email, String phone, String password, Role role,
-                                 String vehicleType, String licenseNumber, String restaurantId) {
+                                 String vehicleType, String licenseNumber, String restaurantId, String adminKey) {
     }
 
     public record LoginRequest(String identifier, String password) {

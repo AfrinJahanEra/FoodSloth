@@ -1,8 +1,8 @@
 package org.sda.deliveryservice.controller;
 
+import org.sda.deliveryservice.dto.AssignRiderRequest;
 import org.sda.deliveryservice.dto.DeliveryResponse;
 import org.sda.deliveryservice.dto.GoOnlineRequest;
-import org.sda.deliveryservice.dto.LocationUpdateRequest;
 import org.sda.deliveryservice.dto.RiderResponse;
 import org.sda.deliveryservice.dto.TrackingResponse;
 import org.sda.deliveryservice.entity.Delivery;
@@ -14,7 +14,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -59,33 +58,20 @@ public class DeliveryController {
                           @RequestBody GoOnlineRequest request) {
         String riderId = requireRider(userId, role);
         requireCoordinates(request.latitude(), request.longitude());
-        return RiderResponse.from(riderService.goOnline(riderId, request.displayName(), request.phone(), request.vehicleType(),
+        return riderService.toResponse(riderService.goOnline(riderId, request.displayName(), request.phone(), request.vehicleType(),
                 request.latitude(), request.longitude()));
     }
 
     @PostMapping("/riders/offline")
     public RiderResponse goOffline(@RequestHeader(value = "X-User-Id", required = false) String userId,
                            @RequestHeader(value = "X-User-Role", required = false) String role) {
-        return RiderResponse.from(riderService.goOffline(requireRider(userId, role)));
-    }
-
-    /**
-     * The rider app posts here every few seconds. Each ping refreshes the marker and the ETA that
-     * the customer's tracking screen reads back.
-     */
-    @PutMapping("/riders/location")
-    public RiderResponse updateLocation(@RequestHeader(value = "X-User-Id", required = false) String userId,
-                                @RequestHeader(value = "X-User-Role", required = false) String role,
-                                @RequestBody LocationUpdateRequest request) {
-        String riderId = requireRider(userId, role);
-        requireCoordinates(request.latitude(), request.longitude());
-        return RiderResponse.from(deliveryService.recordRiderLocation(riderId, request.latitude(), request.longitude()));
+        return riderService.toResponse(riderService.goOffline(requireRider(userId, role)));
     }
 
     @GetMapping("/riders/me")
     public RiderResponse getMyRiderProfile(@RequestHeader(value = "X-User-Id", required = false) String userId,
                                    @RequestHeader(value = "X-User-Role", required = false) String role) {
-        return RiderResponse.from(riderService.require(requireRider(userId, role)));
+        return riderService.toResponse(riderService.require(requireRider(userId, role)));
     }
 
     // ------------------------------------------------------------------
@@ -109,18 +95,15 @@ public class DeliveryController {
         return deliveryService.findByRider(requireRider(userId, role)).stream().map(DeliveryResponse::from).toList();
     }
 
+    /**
+     * The rider confirms an assignment. Online riders cannot refuse a job - accepting is the only
+     * way forward, and this is the moment the customer's order turns OUT_FOR_DELIVERY.
+     */
     @PatchMapping("/{deliveryId}/accept")
     public DeliveryResponse accept(@RequestHeader(value = "X-User-Id", required = false) String userId,
                            @RequestHeader(value = "X-User-Role", required = false) String role,
                            @PathVariable String deliveryId) {
         return DeliveryResponse.from(deliveryService.accept(deliveryId, requireRider(userId, role)));
-    }
-
-    @PatchMapping("/{deliveryId}/decline")
-    public DeliveryResponse decline(@RequestHeader(value = "X-User-Id", required = false) String userId,
-                            @RequestHeader(value = "X-User-Role", required = false) String role,
-                            @PathVariable String deliveryId) {
-        return DeliveryResponse.from(deliveryService.decline(deliveryId, requireRider(userId, role)));
     }
 
     @PatchMapping("/{deliveryId}/picked-up")
@@ -177,7 +160,22 @@ public class DeliveryController {
     @GetMapping("/riders")
     public List<RiderResponse> getAllRiders(@RequestHeader(value = "X-User-Role", required = false) String role) {
         requireAdmin(role);
-        return riderService.findAll().stream().map(RiderResponse::from).toList();
+        return riderService.findAll().stream().map(riderService::toResponse).toList();
+    }
+
+    /**
+     * The admin hands a waiting delivery to a chosen rider. The rider must be online and have a
+     * free slot for today; the assignment is mandatory for the rider.
+     */
+    @PostMapping("/{deliveryId}/assign")
+    public DeliveryResponse assign(@RequestHeader(value = "X-User-Role", required = false) String role,
+                           @PathVariable String deliveryId,
+                           @RequestBody AssignRiderRequest request) {
+        requireAdmin(role);
+        if (request == null || request.riderId() == null || request.riderId().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "riderId is required");
+        }
+        return DeliveryResponse.from(deliveryService.assignByAdmin(deliveryId, request.riderId()));
     }
 
     @GetMapping("/{deliveryId}")
@@ -185,6 +183,17 @@ public class DeliveryController {
                                 @PathVariable String deliveryId) {
         requireAdmin(role);
         return DeliveryResponse.from(deliveryService.getById(deliveryId));
+    }
+
+    /**
+     * The admin cancels a delivery job. Only the admin has this power - riders have no cancel
+     * endpoint. The rider's slot for the job is handed back, so they can be assigned again at once.
+     */
+    @PatchMapping("/{deliveryId}/cancel")
+    public DeliveryResponse cancel(@RequestHeader(value = "X-User-Role", required = false) String role,
+                           @PathVariable String deliveryId) {
+        requireAdmin(role);
+        return DeliveryResponse.from(deliveryService.cancelByAdmin(deliveryId));
     }
 
     // ------------------------------------------------------------------

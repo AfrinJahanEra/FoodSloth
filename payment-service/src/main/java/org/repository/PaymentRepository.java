@@ -12,4 +12,7 @@ public interface PaymentRepository extends MongoRepository<Payment, String> {
     Optional<Payment> findByStripeSessionId(String stripeSessionId);
 
     List<Payment> findByUserId(String userId);
+
+    /** The admin ledger, newest first. */
+    List<Payment> findAllByOrderByCreatedAtDesc();
 }

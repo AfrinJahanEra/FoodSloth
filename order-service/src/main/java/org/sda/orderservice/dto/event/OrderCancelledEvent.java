@@ -9,6 +9,7 @@ package org.sda.orderservice.dto.event;
  */
 public record OrderCancelledEvent(
         String orderId,
+        Long orderNo,
         String userId,
         String restaurantId,
         String reason

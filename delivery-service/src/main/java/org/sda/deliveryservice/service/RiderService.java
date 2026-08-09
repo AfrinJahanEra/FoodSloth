@@ -1,5 +1,6 @@
 package org.sda.deliveryservice.service;
 
+import org.sda.deliveryservice.dto.RiderResponse;
 import org.sda.deliveryservice.entity.GeoPoint;
 import org.sda.deliveryservice.entity.Rider;
 import org.sda.deliveryservice.entity.RiderStatus;
@@ -11,6 +12,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
@@ -33,6 +35,10 @@ public class RiderService {
 
     @Value("${delivery.location-max-age-minutes}")
     private long locationMaxAgeMinutes;
+
+    /** Every rider gets this many delivery slots per calendar day. */
+    @Value("${delivery.slots-per-day}")
+    private int slotsPerDay;
 
     public RiderService(RiderRepository riderRepository, RouteEstimator routeEstimator) {
         this.riderRepository = riderRepository;
@@ -61,7 +67,8 @@ public class RiderService {
             rider.setVehicleType(vehicleType);
         }
 
-        rider.setLocation(new GeoPoint(latitude, longitude));
+        GeoPoint fix = new GeoPoint(latitude, longitude);
+        rider.setLocation(fix.isReal() ? fix : null);
         rider.setLocationUpdatedAt(Instant.now());
         // A rider who reconnects mid-job stays ON_DELIVERY; only a free rider becomes AVAILABLE.
         if (rider.getActiveDeliveryId() == null) {
@@ -76,21 +83,9 @@ public class RiderService {
         Rider rider = require(riderId);
         if (rider.getActiveDeliveryId() != null) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "Finish or decline delivery " + rider.getActiveDeliveryId() + " before going offline");
+                    "Finish delivery " + rider.getActiveDeliveryId() + " before going offline");
         }
         rider.setStatus(RiderStatus.OFFLINE);
-        rider.setUpdatedAt(Instant.now());
-        return riderRepository.save(rider);
-    }
-
-    /** Stores a GPS ping. */
-    public Rider recordLocation(String riderId, double latitude, double longitude) {
-        Rider rider = require(riderId);
-        if (rider.getStatus() == RiderStatus.OFFLINE) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Go online before sending location updates");
-        }
-        rider.setLocation(new GeoPoint(latitude, longitude));
-        rider.setLocationUpdatedAt(Instant.now());
         rider.setUpdatedAt(Instant.now());
         return riderRepository.save(rider);
     }
@@ -104,7 +99,8 @@ public class RiderService {
 
         return riderRepository.findByStatus(RiderStatus.AVAILABLE).stream()
                 .filter(rider -> !excludedRiderIds.contains(rider.getId()))
-                .filter(rider -> rider.getLocation() != null)
+                .filter(this::hasFreeSlotToday)
+                .filter(rider -> rider.getLocation() != null && rider.getLocation().isReal())
                 // A rider whose app stopped reporting is treated as unreachable rather than free.
                 .filter(rider -> rider.getLocationUpdatedAt() != null
                         && rider.getLocationUpdatedAt().isAfter(freshnessCutoff))
@@ -112,15 +108,44 @@ public class RiderService {
                 .min(Comparator.comparingDouble(rider -> routeEstimator.distanceKm(rider.getLocation(), pickup)));
     }
 
-    /** Ties a rider to a delivery. */
+    // ------------------------------------------------------------------
+    // Daily slots
+    // ------------------------------------------------------------------
+
+    /** Slots the rider has already used today; a stale counter from a previous day counts as zero. */
+    public int slotsUsedToday(Rider rider) {
+        LocalDate today = LocalDate.now();
+        return today.equals(rider.getSlotDate()) ? rider.getDeliveriesToday() : 0;
+    }
+
+    /** A rider with all {@code delivery.slots-per-day} slots used is not free, whatever the status. */
+    public boolean hasFreeSlotToday(Rider rider) {
+        return slotsUsedToday(rider) < slotsPerDay;
+    }
+
+    public RiderResponse toResponse(Rider rider) {
+        int used = slotsUsedToday(rider);
+        return RiderResponse.from(rider, used, Math.max(0, slotsPerDay - used));
+    }
+
+    /** Ties a rider to a delivery and takes one of today's slots. */
     public Rider reserve(Rider rider, String deliveryId) {
+        LocalDate today = LocalDate.now();
+        if (!today.equals(rider.getSlotDate())) {
+            rider.setSlotDate(today);
+            rider.setDeliveriesToday(0);
+        }
+        rider.setDeliveriesToday(rider.getDeliveriesToday() + 1);
         rider.setStatus(RiderStatus.ON_DELIVERY);
         rider.setActiveDeliveryId(deliveryId);
         rider.setUpdatedAt(Instant.now());
         return riderRepository.save(rider);
     }
 
-    /** Frees a rider after a decline, a cancellation or a completed drop-off. */
+    /**
+     * Frees a rider after a cancellation or a completed drop-off. A cancelled job gives the slot
+     * back; a finished one keeps it, because the rider did the work.
+     */
     public void release(String riderId, boolean countCompletion) {
         if (riderId == null) {
             return;
@@ -131,6 +156,8 @@ public class RiderService {
             rider.setStatus(rider.getStatus() == RiderStatus.OFFLINE ? RiderStatus.OFFLINE : RiderStatus.AVAILABLE);
             if (countCompletion) {
                 rider.setCompletedDeliveries(rider.getCompletedDeliveries() + 1);
+            } else if (LocalDate.now().equals(rider.getSlotDate()) && rider.getDeliveriesToday() > 0) {
+                rider.setDeliveriesToday(rider.getDeliveriesToday() - 1);
             }
             rider.setUpdatedAt(Instant.now());
             riderRepository.save(rider);

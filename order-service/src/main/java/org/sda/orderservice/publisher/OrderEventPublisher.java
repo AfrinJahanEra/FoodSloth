@@ -30,6 +30,7 @@ public class OrderEventPublisher {
     public void publishPaymentRequested(Order order) {
         PaymentRequestedEvent event = new PaymentRequestedEvent(
                 order.getId(),
+                order.getOrderNo(),
                 order.getUserId(),
                 order.getGrandTotal() == null ? null : order.getGrandTotal().doubleValue(),
                 order.getCurrency(),
@@ -41,6 +42,7 @@ public class OrderEventPublisher {
     public void publishOrderConfirmed(Order order) {
         OrderConfirmedEvent event = new OrderConfirmedEvent(
                 order.getId(),
+                order.getOrderNo(),
                 order.getUserId(),
                 order.getRestaurantId(),
                 order.getGrandTotal() == null ? null : order.getGrandTotal().doubleValue());
@@ -49,13 +51,13 @@ public class OrderEventPublisher {
 
     public void publishOrderCancelled(Order order, String reason) {
         OrderCancelledEvent event = new OrderCancelledEvent(
-                order.getId(), order.getUserId(), order.getRestaurantId(), reason);
+                order.getId(), order.getOrderNo(), order.getUserId(), order.getRestaurantId(), reason);
         send(Constants.RK_ORDER_CANCELLED, event, order.getId());
     }
 
     public void publishOrderDelivered(Order order) {
         OrderDeliveredEvent event = new OrderDeliveredEvent(
-                order.getId(), order.getUserId(), order.getRestaurantId());
+                order.getId(), order.getOrderNo(), order.getUserId(), order.getRestaurantId());
         send(Constants.RK_ORDER_DELIVERED, event, order.getId());
     }
 

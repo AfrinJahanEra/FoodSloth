@@ -5,6 +5,8 @@ import org.sda.restaurantservice.dto.MenuItemRequest;
 import org.sda.restaurantservice.dto.MenuItemResponse;
 import org.sda.restaurantservice.dto.RestaurantRequest;
 import org.sda.restaurantservice.dto.RestaurantResponse;
+import org.sda.restaurantservice.dto.UploadSignatureResponse;
+import org.sda.restaurantservice.service.CloudinaryService;
 import org.sda.restaurantservice.service.RestaurantService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -36,6 +38,9 @@ public class RestaurantController {
     @Autowired
     private RestaurantService restaurantService;
 
+    @Autowired
+    private CloudinaryService cloudinaryService;
+
     @GetMapping
     public RestaurantResponse getRestaurant() {
         return RestaurantResponse.from(restaurantService.getRestaurant());
@@ -63,6 +68,16 @@ public class RestaurantController {
     @GetMapping("/menu")
     public List<MenuItemResponse> getMenu() {
         return restaurantService.getMenu().stream().map(MenuItemResponse::from).toList();
+    }
+
+    /**
+     * Signed Cloudinary upload parameters for the browser. Admin-only: only staff may add photos.
+     * The browser then POSTs the file directly to Cloudinary and stores the returned
+     * {@code secure_url} on the menu item via the regular create/update endpoints.
+     */
+    @GetMapping("/images/upload-signature")
+    public UploadSignatureResponse uploadSignature(@RequestHeader(value = "X-User-Role", required = false) String role) {
+        return cloudinaryService.uploadSignature(role);
     }
 
     @GetMapping("/menu/{itemId}")

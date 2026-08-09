@@ -12,6 +12,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record DeliveryEvent(
         String orderId,
+        Long orderNo,
         String userId,
         String deliveryId,
         String riderId,

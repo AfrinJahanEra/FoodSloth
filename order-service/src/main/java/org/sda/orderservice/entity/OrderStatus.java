@@ -9,6 +9,7 @@ package org.sda.orderservice.entity;
  *   payment.succeeded       -> CONFIRMED       (+ order.confirmed)
  *   payment.failed          -> PAYMENT_FAILED
  *   restaurant.order-accepted -> PREPARING
+ *   restaurant.order-ready  -> READY
  *   restaurant.order-rejected -> REJECTED      (+ order.cancelled, so the charge is refunded)
  *   delivery.started        -> OUT_FOR_DELIVERY
  *   delivery.completed      -> DELIVERED       (+ order.delivered)
@@ -19,6 +20,7 @@ public enum OrderStatus {
     PENDING_PAYMENT,
     CONFIRMED,
     PREPARING,
+    READY,
     OUT_FOR_DELIVERY,
     DELIVERED,
     PAYMENT_FAILED,

@@ -31,6 +31,10 @@ public class Delivery {
     @Indexed(unique = true)
     private String orderId;
 
+    /** Sequential human-facing order number (#123) forwarded from the kitchen; shown instead of the UUID. */
+    @Field
+    private Long orderNo;
+
     /** The customer waiting for the food. */
     @Field
     @Indexed
@@ -48,6 +52,10 @@ public class Delivery {
     /** Kept only so the rider app can show the address the customer already picked. */
     @Field
     private String dropAddressLabel;
+
+    /** The customer's phone number so the rider can call when the drop point is unclear. */
+    @Field
+    private String customerPhone;
 
     @Field
     @Indexed

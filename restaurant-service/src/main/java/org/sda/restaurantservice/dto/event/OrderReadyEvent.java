@@ -9,12 +9,16 @@ package org.sda.restaurantservice.dto.event;
  */
 public record OrderReadyEvent(
         String orderId,
+        /** Sequential human-facing order number (#123) forwarded for the delivery record and messages. */
+        Long orderNo,
         String userId,
         String restaurantId,
         Double pickupLatitude,
         Double pickupLongitude,
         Double dropLatitude,
         Double dropLongitude,
-        String dropAddressLabel
+        String dropAddressLabel,
+        /** The customer's phone number so the rider can call if the drop point is unclear. */
+        String customerPhone
 ) {
 }

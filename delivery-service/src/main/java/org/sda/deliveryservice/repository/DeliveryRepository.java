@@ -15,7 +15,11 @@ public interface DeliveryRepository extends MongoRepository<Delivery, String> {
 
     List<Delivery> findByUserIdOrderByCreatedAtDesc(String userId);
 
-    Optional<Delivery> findByRiderIdAndStatusIn(String riderId, List<DeliveryStatus> statuses);
+    /**
+     * A rider may hold several live jobs at once (the admin assigns while a slot is free), so
+     * this returns a list; callers take the oldest one as the current job.
+     */
+    List<Delivery> findByRiderIdAndStatusInOrderByAssignedAtAsc(String riderId, List<DeliveryStatus> statuses);
 
     List<Delivery> findByRiderIdOrderByCreatedAtDesc(String riderId);
 }

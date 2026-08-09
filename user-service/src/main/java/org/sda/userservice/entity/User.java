@@ -42,6 +42,11 @@ public class User {
     @Field
     private Role role = Role.CUSTOMER;
 
+    /** Short human-readable id shown in the UI, e.g. C-12 / D-4 / A-1 (customer/rider/admin). */
+    @Field
+    @Indexed(unique = true, sparse = true)
+    private String code;
+
     @Field
     private String vehicleType;
 

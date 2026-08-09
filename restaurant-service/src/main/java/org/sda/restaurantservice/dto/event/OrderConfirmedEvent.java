@@ -6,9 +6,9 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
  * Consumed from {@code order.confirmed} - payment cleared, so the ticket that has been waiting may
  * now appear on the kitchen screen.
  *
- * <p>Only the order id is needed: this service priced the order itself, so it already holds the
- * items. Reading more than that would be replicating Order Service's data.
+ * <p>{@code orderNo} is the sequential number Order Service minted for the order; the kitchen
+ * stores it so its screen and the ready event can show a friendly #number instead of the UUID.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record OrderConfirmedEvent(String orderId) {
+public record OrderConfirmedEvent(String orderId, Long orderNo) {
 }

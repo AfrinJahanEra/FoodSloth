@@ -22,6 +22,8 @@ public record CartCheckedOutEvent(
         String deliveryAddress,
         Double deliveryLatitude,
         Double deliveryLongitude,
+        /** The customer's phone number, forwarded so the rider can call at the door. */
+        String contactPhone,
         String paymentMethod,
         String note
 ) {

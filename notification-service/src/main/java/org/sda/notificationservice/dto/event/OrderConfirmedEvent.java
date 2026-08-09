@@ -13,6 +13,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record OrderConfirmedEvent(
         String orderId,
+        Long orderNo,
         String userId,
         String restaurantId,
         Double grandTotal
