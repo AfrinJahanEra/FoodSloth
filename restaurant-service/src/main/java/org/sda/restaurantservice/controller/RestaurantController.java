@@ -1,8 +1,12 @@
 package org.sda.restaurantservice.controller;
 
-import org.sda.restaurantservice.entity.MenuItem;
-import org.sda.restaurantservice.entity.OperatingHours;
-import org.sda.restaurantservice.entity.Restaurant;
+import org.sda.restaurantservice.dto.HoursRequest;
+import org.sda.restaurantservice.dto.MenuItemRequest;
+import org.sda.restaurantservice.dto.MenuItemResponse;
+import org.sda.restaurantservice.dto.RestaurantRequest;
+import org.sda.restaurantservice.dto.RestaurantResponse;
+import org.sda.restaurantservice.dto.UploadSignatureResponse;
+import org.sda.restaurantservice.service.CloudinaryService;
 import org.sda.restaurantservice.service.RestaurantService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -34,55 +38,69 @@ public class RestaurantController {
     @Autowired
     private RestaurantService restaurantService;
 
+    @Autowired
+    private CloudinaryService cloudinaryService;
+
     @GetMapping
-    public Restaurant getRestaurant() {
-        return restaurantService.getRestaurant();
+    public RestaurantResponse getRestaurant() {
+        return RestaurantResponse.from(restaurantService.getRestaurant());
     }
 
     @PutMapping
-    public Restaurant updateRestaurant(@RequestHeader(value = "X-User-Role", required = false) String role,
-                                        @RequestBody Restaurant restaurant) {
-        return restaurantService.updateRestaurant(role, restaurant);
+    public RestaurantResponse updateRestaurant(@RequestHeader(value = "X-User-Role", required = false) String role,
+                                        @RequestBody RestaurantRequest restaurant) {
+        return RestaurantResponse.from(restaurantService.updateRestaurant(role, restaurant.toEntity()));
     }
 
     @PatchMapping("/status")
-    public Restaurant setOpenStatus(@RequestHeader(value = "X-User-Role", required = false) String role,
+    public RestaurantResponse setOpenStatus(@RequestHeader(value = "X-User-Role", required = false) String role,
                                      @RequestBody Map<String, Boolean> body) {
-        return restaurantService.setOpenStatus(role, Boolean.TRUE.equals(body.get("open")));
+        return RestaurantResponse.from(restaurantService.setOpenStatus(role, Boolean.TRUE.equals(body.get("open"))));
     }
 
     @PutMapping("/hours")
-    public Restaurant updateOperatingHours(@RequestHeader(value = "X-User-Role", required = false) String role,
-                                            @RequestBody List<OperatingHours> hours) {
-        return restaurantService.updateOperatingHours(role, hours);
+    public RestaurantResponse updateOperatingHours(@RequestHeader(value = "X-User-Role", required = false) String role,
+                                            @RequestBody List<HoursRequest> hours) {
+        return RestaurantResponse.from(restaurantService.updateOperatingHours(role,
+                hours.stream().map(HoursRequest::toEntity).toList()));
     }
 
     @GetMapping("/menu")
-    public List<MenuItem> getMenu() {
-        return restaurantService.getMenu();
+    public List<MenuItemResponse> getMenu() {
+        return restaurantService.getMenu().stream().map(MenuItemResponse::from).toList();
+    }
+
+    /**
+     * Signed Cloudinary upload parameters for the browser. Admin-only: only staff may add photos.
+     * The browser then POSTs the file directly to Cloudinary and stores the returned
+     * {@code secure_url} on the menu item via the regular create/update endpoints.
+     */
+    @GetMapping("/images/upload-signature")
+    public UploadSignatureResponse uploadSignature(@RequestHeader(value = "X-User-Role", required = false) String role) {
+        return cloudinaryService.uploadSignature(role);
     }
 
     @GetMapping("/menu/{itemId}")
-    public MenuItem getMenuItem(@PathVariable String itemId) {
-        return restaurantService.getMenuItem(itemId);
+    public MenuItemResponse getMenuItem(@PathVariable String itemId) {
+        return MenuItemResponse.from(restaurantService.getMenuItem(itemId));
     }
 
     @PostMapping("/menu")
-    public Restaurant addMenuItem(@RequestHeader(value = "X-User-Role", required = false) String role,
-                                   @RequestBody MenuItem item) {
-        return restaurantService.addMenuItem(role, item);
+    public RestaurantResponse addMenuItem(@RequestHeader(value = "X-User-Role", required = false) String role,
+                                   @RequestBody MenuItemRequest item) {
+        return RestaurantResponse.from(restaurantService.addMenuItem(role, item.toEntity()));
     }
 
     @PutMapping("/menu/{itemId}")
-    public Restaurant updateMenuItem(@RequestHeader(value = "X-User-Role", required = false) String role,
+    public RestaurantResponse updateMenuItem(@RequestHeader(value = "X-User-Role", required = false) String role,
                                       @PathVariable String itemId,
-                                      @RequestBody MenuItem item) {
-        return restaurantService.updateMenuItem(role, itemId, item);
+                                      @RequestBody MenuItemRequest item) {
+        return RestaurantResponse.from(restaurantService.updateMenuItem(role, itemId, item.toEntity()));
     }
 
     @DeleteMapping("/menu/{itemId}")
-    public Restaurant deleteMenuItem(@RequestHeader(value = "X-User-Role", required = false) String role,
+    public RestaurantResponse deleteMenuItem(@RequestHeader(value = "X-User-Role", required = false) String role,
                                       @PathVariable String itemId) {
-        return restaurantService.deleteMenuItem(role, itemId);
+        return RestaurantResponse.from(restaurantService.deleteMenuItem(role, itemId));
     }
 }

@@ -1,5 +1,6 @@
 package org.sda.userservice.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -29,6 +30,7 @@ public class User {
     private String phone;
 
     @Field
+    @JsonIgnore // BCrypt hash must never leave this service in a JSON response
     private String password;
 
     @Field
@@ -39,6 +41,11 @@ public class User {
 
     @Field
     private Role role = Role.CUSTOMER;
+
+    /** Short human-readable id shown in the UI, e.g. C-12 / D-4 / A-1 (customer/rider/admin). */
+    @Field
+    @Indexed(unique = true, sparse = true)
+    private String code;
 
     @Field
     private String vehicleType;

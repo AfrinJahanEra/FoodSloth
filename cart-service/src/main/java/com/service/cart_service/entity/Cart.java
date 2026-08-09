@@ -12,6 +12,10 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * One active shopping session per user. Holds only what the customer picked - the money is worked
+ * out by Restaurant Service at checkout, not here.
+ */
 @Document(collection = "carts")
 @Data
 @NoArgsConstructor
@@ -27,21 +31,6 @@ public class Cart {
 
     @Field
     private List<CartItem> items = new ArrayList<>();
-
-    @Field
-    private String couponCode;
-
-    @Field
-    private double subtotal;
-
-    @Field
-    private double tax;
-
-    @Field
-    private double deliveryFee;
-
-    @Field
-    private double total;
 
     @Field
     private Instant createdAt = Instant.now();

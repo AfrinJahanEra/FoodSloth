@@ -1,24 +1,23 @@
 server:
   port: 9004
 
-app:
-  # This system serves a single restaurant; every order is attributed to this fixed ID
-  # rather than one supplied by the client.
-  restaurant-id: 68f0000000000000000000f1
-
 spring:
   application:
     name: order-service
 
+  rabbitmq:
+    addresses: localhost:5672
+    listener:
+      simple:
+        # A message this service cannot process is dropped instead of being requeued forever.
+        default-requeue-rejected: false
+        retry:
+          enabled: true
+          max-attempts: 3
+
   mongodb:
     uri: mongodb+srv://era97:era97@cluster0.rali5he.mongodb.net/?appName=Cluster0
     database: food_order_db
-
-  rabbitmq:
-    host: localhost
-    port: 5672
-    username: guest
-    password: guest
 
 management:
   health:

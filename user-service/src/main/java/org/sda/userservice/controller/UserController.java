@@ -1,6 +1,7 @@
 package org.sda.userservice.controller;
 
-import org.sda.userservice.entity.Address;
+import org.sda.userservice.dto.AddressRequest;
+import org.sda.userservice.dto.UserResponse;
 import org.sda.userservice.entity.Role;
 import org.sda.userservice.entity.User;
 import org.sda.userservice.service.UserService;
@@ -27,61 +28,62 @@ public class UserController {
     @PostMapping("/signup")
     public AuthResponse signup(@RequestBody SignupRequest request) {
         User user = userService.signup(request.name(), request.email(), request.phone(), request.password(),
-                request.role(), request.vehicleType(), request.licenseNumber(), request.restaurantId());
-        return new AuthResponse(userService.issueToken(user), user);
+                request.role(), request.vehicleType(), request.licenseNumber(), request.restaurantId(),
+                request.adminKey());
+        return new AuthResponse(userService.issueToken(user), UserResponse.from(user));
     }
 
     @PostMapping("/login")
     public AuthResponse login(@RequestBody LoginRequest request) {
         User user = userService.login(request.identifier(), request.password());
-        return new AuthResponse(userService.issueToken(user), user);
+        return new AuthResponse(userService.issueToken(user), UserResponse.from(user));
     }
 
     @GetMapping("/me")
-    public User getProfile(@RequestHeader("Authorization") String authHeader) {
-        return userService.getCurrentUser(authHeader);
+    public UserResponse getProfile(@RequestHeader("Authorization") String authHeader) {
+        return UserResponse.from(userService.getCurrentUser(authHeader));
     }
 
     @PutMapping("/me")
-    public User updateProfile(@RequestHeader("Authorization") String authHeader, @RequestBody UpdateProfileRequest request) {
-        return userService.updateProfile(authHeader, request.name(), request.phone(), request.photo());
+    public UserResponse updateProfile(@RequestHeader("Authorization") String authHeader, @RequestBody UpdateProfileRequest request) {
+        return UserResponse.from(userService.updateProfile(authHeader, request.name(), request.phone(), request.photo()));
     }
 
     @GetMapping("/me/addresses")
-    public List<Address> getAddresses(@RequestHeader("Authorization") String authHeader) {
-        return userService.getAddresses(authHeader);
+    public List<UserResponse.AddressView> getAddresses(@RequestHeader("Authorization") String authHeader) {
+        return userService.getAddresses(authHeader).stream().map(UserResponse.AddressView::from).toList();
     }
 
     @PostMapping("/me/addresses")
-    public User addAddress(@RequestHeader("Authorization") String authHeader, @RequestBody Address address) {
-        return userService.addAddress(authHeader, address);
+    public UserResponse addAddress(@RequestHeader("Authorization") String authHeader, @RequestBody AddressRequest address) {
+        return UserResponse.from(userService.addAddress(authHeader, address.toEntity()));
     }
 
     @PutMapping("/me/addresses/{addressId}")
-    public User updateAddress(@RequestHeader("Authorization") String authHeader,
+    public UserResponse updateAddress(@RequestHeader("Authorization") String authHeader,
                                @PathVariable String addressId,
-                               @RequestBody Address address) {
-        return userService.updateAddress(authHeader, addressId, address);
+                               @RequestBody AddressRequest address) {
+        return UserResponse.from(userService.updateAddress(authHeader, addressId, address.toEntity()));
     }
 
     @DeleteMapping("/me/addresses/{addressId}")
-    public User deleteAddress(@RequestHeader("Authorization") String authHeader, @PathVariable String addressId) {
-        return userService.deleteAddress(authHeader, addressId);
+    public UserResponse deleteAddress(@RequestHeader("Authorization") String authHeader, @PathVariable String addressId) {
+        return UserResponse.from(userService.deleteAddress(authHeader, addressId));
     }
 
     @PutMapping("/me/addresses/{addressId}/default")
-    public User setDefaultAddress(@RequestHeader("Authorization") String authHeader, @PathVariable String addressId) {
-        return userService.setDefaultAddress(authHeader, addressId);
+    public UserResponse setDefaultAddress(@RequestHeader("Authorization") String authHeader, @PathVariable String addressId) {
+        return UserResponse.from(userService.setDefaultAddress(authHeader, addressId));
     }
 
     @PutMapping("/me/preferences")
-    public User updatePreferences(@RequestHeader("Authorization") String authHeader, @RequestBody PreferencesRequest request) {
-        return userService.updatePreferences(authHeader, request.foodPreferences(), request.dietaryTags(), request.defaultPaymentMethod());
+    public UserResponse updatePreferences(@RequestHeader("Authorization") String authHeader, @RequestBody PreferencesRequest request) {
+        return UserResponse.from(userService.updatePreferences(authHeader, request.foodPreferences(), request.dietaryTags(), request.defaultPaymentMethod()));
     }
 
     @GetMapping
-    public List<User> listUsers(@RequestHeader("Authorization") String authHeader) {
-        return userService.listUsers(authHeader);
+    public List<UserResponse> listUsers(@RequestHeader("Authorization") String authHeader) {
+        return userService.listUsers(authHeader).stream().map(UserResponse::from).toList();
     }
 
     @DeleteMapping("/{userId}")
@@ -90,7 +92,7 @@ public class UserController {
     }
 
     public record SignupRequest(String name, String email, String phone, String password, Role role,
-                                 String vehicleType, String licenseNumber, String restaurantId) {
+                                 String vehicleType, String licenseNumber, String restaurantId, String adminKey) {
     }
 
     public record LoginRequest(String identifier, String password) {
@@ -102,6 +104,6 @@ public class UserController {
     public record PreferencesRequest(List<String> foodPreferences, List<String> dietaryTags, String defaultPaymentMethod) {
     }
 
-    public record AuthResponse(String token, User user) {
+    public record AuthResponse(String token, UserResponse user) {
     }
 }

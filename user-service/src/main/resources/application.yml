@@ -5,6 +5,9 @@ spring:
   application:
     name: user-service
 
+  rabbitmq:
+    addresses: localhost:5672
+
   mongodb:
     uri: mongodb+srv://era97:era97@cluster0.rali5he.mongodb.net/?appName=Cluster0
     database: food_user_db
@@ -15,8 +18,14 @@ management:
       enabled: false
 
 jwt:
-  secret: food-delivery-user-service-jwt-secret-key-change-me-2026
+  # Overridable via JWT_SECRET env var (see .env.example); must match api-gateway, which verifies the tokens.
+  secret: ${JWT_SECRET:food-delivery-user-service-jwt-secret-key-change-me-2026}
   expiration-ms: 86400000
+
+admin:
+  # Secret key required when signing up with the ADMIN role; overridable via ADMIN_SIGNUP_KEY
+  # env var (see .env / .env.example at the repo root).
+  signup-key: ${ADMIN_SIGNUP_KEY:ad123}
 
 eureka:
   client:

@@ -1,9 +1,11 @@
 package org.controller;
 
+import org.dto.PaymentResponse;
 import org.entity.Payment;
 import org.entity.PaymentStatus;
 import org.service.PaymentService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -14,30 +16,95 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 
+/**
+ * REST surface of Payment Service. Reached by clients through api-gateway at {@code /payments/**}.
+ *
+ * <p>There is no endpoint to start a payment: payments are started by {@code order.payment-requested},
+ * so nobody can be charged for an order that does not exist. The customer's browser gets the Stripe
+ * link from {@code GET /payments/order/{orderId}} and can ask for a fresh one after a failure.
+ *
+ * <p>Auth note: the JWT is verified by api-gateway, which strips client-supplied {@code X-User-*}
+ * headers and re-adds them from the verified claims. The two Stripe-facing endpoints (the webhook and
+ * the return pages) are deliberately unauthenticated - Stripe and a redirected browser carry no
+ * token; the webhook is instead verified by its signature.
+ */
 @RestController
 @RequestMapping("/payments")
 public class PaymentController {
 
+    private static final String ROLE_ADMIN = "ADMIN";
+
     @Autowired
     private PaymentService paymentService;
 
-    @PostMapping("/checkout-session")
-    public CheckoutSessionResponse createCheckoutSession(@RequestBody CreateCheckoutRequest request) {
-        PaymentService.CheckoutSessionResult result = paymentService.createCheckoutSession(
-                request.orderId(), request.userId(), request.amount(), request.currency(), request.description());
-        return new CheckoutSessionResponse(
-                result.payment().getId(),
-                result.payment().getStripeSessionId(),
-                result.checkoutUrl(),
-                result.payment().getStatus().name());
+    // ------------------------------------------------------------------
+    // Customer
+    // ------------------------------------------------------------------
+
+    /** The payment for one of my orders, including the Stripe link while it is still payable. */
+    @GetMapping("/order/{orderId}")
+    public PaymentResponse getPaymentByOrder(@RequestHeader(value = "X-User-Id", required = false) String userId,
+                                     @RequestHeader(value = "X-User-Role", required = false) String role,
+                                     @PathVariable String orderId) {
+        Payment payment = paymentService.getByOrderId(orderId);
+        return ROLE_ADMIN.equals(role)
+                ? PaymentResponse.from(payment)
+                : PaymentResponse.from(paymentService.requireOwnedBy(requireAuthenticated(userId), payment));
     }
 
-    @GetMapping("/session/{sessionId}/verify")
-    public Payment verifySession(@PathVariable String sessionId) {
-        return paymentService.verifySession(sessionId);
+    @GetMapping("/me")
+    public List<PaymentResponse> getMyPayments(@RequestHeader(value = "X-User-Id", required = false) String userId) {
+        return paymentService.getByUserId(requireAuthenticated(userId)).stream().map(PaymentResponse::from).toList();
+    }
+
+    /** A fresh checkout link after a declined or expired attempt. */
+    @PostMapping("/order/{orderId}/retry")
+    public PaymentResponse retry(@RequestHeader(value = "X-User-Id", required = false) String userId,
+                         @PathVariable String orderId) {
+        return PaymentResponse.from(paymentService.retry(requireAuthenticated(userId), orderId));
+    }
+
+    // ------------------------------------------------------------------
+    // Admin
+    // ------------------------------------------------------------------
+
+    /** The admin's ledger: every payment on the platform, newest first. */
+    @GetMapping
+    public List<PaymentResponse> getAllPayments(@RequestHeader(value = "X-User-Role", required = false) String role) {
+        requireAdmin(role);
+        return paymentService.getAll().stream().map(PaymentResponse::from).toList();
+    }
+
+    @GetMapping("/{id}")
+    public PaymentResponse getPayment(@RequestHeader(value = "X-User-Id", required = false) String userId,
+                              @RequestHeader(value = "X-User-Role", required = false) String role,
+                              @PathVariable String id) {
+        Payment payment = paymentService.getById(id);
+        return ROLE_ADMIN.equals(role)
+                ? PaymentResponse.from(payment)
+                : PaymentResponse.from(paymentService.requireOwnedBy(requireAuthenticated(userId), payment));
+    }
+
+    @PostMapping("/{id}/refund")
+    public PaymentResponse refundPayment(@RequestHeader(value = "X-User-Role", required = false) String role,
+                                 @PathVariable String id) {
+        requireAdmin(role);
+        return PaymentResponse.from(paymentService.refund(id));
+    }
+
+    // ------------------------------------------------------------------
+    // Stripe-facing (no token - see the class note)
+    // ------------------------------------------------------------------
+
+    @PostMapping("/webhook")
+    public ResponseEntity<Void> handleWebhook(@RequestBody String payload,
+                                              @RequestHeader("Stripe-Signature") String signature) {
+        paymentService.handleWebhookEvent(payload, signature);
+        return ResponseEntity.ok().build();
     }
 
     @GetMapping(value = "/checkout-success", produces = MediaType.TEXT_HTML_VALUE)
@@ -58,31 +125,24 @@ public class PaymentController {
         return resultPage(false, "Payment cancelled", "You cancelled the checkout. No charge was made. You can close this tab.");
     }
 
-    @GetMapping("/{id}")
-    public Payment getPayment(@PathVariable String id) {
-        return paymentService.getById(id);
+    // ------------------------------------------------------------------
+    // Gateway-header guards
+    // ------------------------------------------------------------------
+
+    private String requireAuthenticated(String userId) {
+        if (userId == null || userId.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Missing or invalid Authorization token");
+        }
+        return userId;
     }
 
-    @GetMapping("/order/{orderId}")
-    public Payment getPaymentByOrder(@PathVariable String orderId) {
-        return paymentService.getByOrderId(orderId);
-    }
-
-    @GetMapping("/user/{userId}")
-    public List<Payment> getPaymentsByUser(@PathVariable String userId) {
-        return paymentService.getByUserId(userId);
-    }
-
-    @PostMapping("/{id}/refund")
-    public Payment refundPayment(@PathVariable String id) {
-        return paymentService.refund(id);
-    }
-
-    @PostMapping("/webhook")
-    public ResponseEntity<Void> handleWebhook(@RequestBody String payload,
-                                               @RequestHeader("Stripe-Signature") String signature) {
-        paymentService.handleWebhookEvent(payload, signature);
-        return ResponseEntity.ok().build();
+    private void requireAdmin(String role) {
+        if (role == null || role.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Missing or invalid Authorization token");
+        }
+        if (!ROLE_ADMIN.equals(role)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Admin role required");
+        }
     }
 
     private String resultPage(boolean success, String title, String message) {
@@ -98,11 +158,5 @@ public class PaymentController {
                 + "p{color:#475569;font-size:0.95rem;}</style></head>"
                 + "<body><div class=\"card\"><div class=\"icon\">" + icon + "</div><h1>" + title + "</h1><p>" + message
                 + "</p></div></body></html>";
-    }
-
-    public record CreateCheckoutRequest(String orderId, String userId, Long amount, String currency, String description) {
-    }
-
-    public record CheckoutSessionResponse(String paymentId, String sessionId, String checkoutUrl, String status) {
     }
 }

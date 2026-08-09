@@ -22,9 +22,19 @@ public class Payment {
     @Indexed
     private String orderId;
 
+    /** Sequential human-facing order number (#123) shown in the admin ledger instead of the UUID. */
+    @Field
+    private Long orderNo;
+
+    /** Sequential human-facing payment number (#123) shown on slips instead of the UUID. */
+    @Field
+    @Indexed(unique = true, sparse = true)
+    private Long paymentNo;
+
     @Field
     private String userId;
 
+    /** Charged amount in the currency's smallest unit (poisha for BDT), which is what Stripe wants. */
     @Field
     private Long amount;
 
@@ -43,6 +53,13 @@ public class Payment {
 
     @Field
     private String stripePaymentIntentId;
+
+    /**
+     * Where the customer has to go to pay. Handed out over REST rather than pushed anywhere, because
+     * only the customer's own browser can use it.
+     */
+    @Field
+    private String checkoutUrl;
 
     @Field
     private String failureReason;

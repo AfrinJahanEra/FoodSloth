@@ -7,7 +7,10 @@ import org.sda.orderservice.service.OrderService;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
 
-// TODO: publisher side (Payment Service) is not implemented in this scope.
+/**
+ * Payment results. {@code payment.succeeded} moves the order to CONFIRMED;
+ * {@code payment.failed} moves it to PAYMENT_FAILED and the customer can retry.
+ */
 @Component
 public class PaymentEventListener {
 
