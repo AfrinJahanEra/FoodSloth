@@ -30,7 +30,7 @@ App.register('/', {
             ];
 
         const hero = UI.el('section', { class: 'hero' },
-            UI.el('img', { class: 'hero-banner', src: '/assets/hero.png', alt: 'FoodSloth - good food, delivered slow' }),
+            UI.el('img', { class: 'hero-banner', src: '/assets/hero-banner.png', alt: 'FoodSloth - good food, delivered slow' }),
             UI.el('div', { class: 'hero-overlay' },
                 UI.el('div', { class: 'hero-copy' },
                     UI.el('span', { class: 'hero-eyebrow' }, 'Fresh kitchen · open daily'),

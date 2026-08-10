@@ -15,7 +15,9 @@ App.register('/signup', {
             UI.el('option', { value: 'ADMIN' }, 'Admin / kitchen')
         );
 
-        // Rider-only fields, shown/hidden with the role select.
+        // Rider-only fields, shown/hidden with the role select: secret key first,
+        // then vehicle and plate.
+        const riderKey = UI.el('input', { type: 'password', autocomplete: 'off' });
         const vehicleType = UI.el('select', {},
             UI.el('option', { value: 'BIKE' }, 'Bike'),
             UI.el('option', { value: 'MOTORCYCLE' }, 'Motorcycle'),
@@ -23,15 +25,14 @@ App.register('/signup', {
         );
         const licenseNumber = UI.el('input', { type: 'text' });
         const riderFields = UI.el('div', {},
+            UI.el('label', {}, 'Rider secret key'), riderKey,
             UI.el('label', {}, 'Vehicle type'), vehicleType,
-            UI.el('label', {}, 'License number'), licenseNumber
+            UI.el('label', {}, 'Number plate'), licenseNumber
         );
-        // Admin-only field: the secret key from the .env file proves the signer may join as staff.
+        // Admin-only field: the secret key proves the signer may join as staff.
         const adminKey = UI.el('input', { type: 'password', autocomplete: 'off' });
         const adminFields = UI.el('div', {},
-            UI.el('label', {}, 'Admin secret key'), adminKey,
-            UI.el('p', { class: 'muted', style: 'margin:4px 0 0' },
-                'Ask the platform owner for this key - it lives in the .env file.'));
+            UI.el('label', {}, 'Admin secret key'), adminKey);
         const syncRiderFields = () => {
             riderFields.style.display = role.value === 'DELIVERYMAN' ? '' : 'none';
             adminFields.style.display = role.value === 'ADMIN' ? '' : 'none';
@@ -54,6 +55,7 @@ App.register('/signup', {
                         role: role.value
                     };
                     if (role.value === 'DELIVERYMAN') {
+                        payload.riderKey = riderKey.value;
                         payload.vehicleType = vehicleType.value;
                         payload.licenseNumber = licenseNumber.value.trim();
                     }

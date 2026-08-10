@@ -319,6 +319,38 @@ public class DeliveryService {
         return saved;
     }
 
+    /**
+     * The admin removes the rider from a job without touching the order: the slot is handed
+     * back and the delivery returns to PENDING_ASSIGNMENT, waiting for a new rider. This is
+     * deliberately separate from {@link #cancelByAdmin} - the order always stays alive.
+     */
+    public synchronized Delivery unassign(String deliveryId) {
+        Delivery delivery = getById(deliveryId);
+        if (delivery.getStatus() == DeliveryStatus.CANCELLED || delivery.getStatus() == DeliveryStatus.DELIVERED) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "A " + delivery.getStatus() + " delivery has no rider assignment to remove");
+        }
+        if (delivery.getRiderId() == null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "This delivery has no rider assigned");
+        }
+
+        riderService.release(delivery.getRiderId(), false);
+        delivery.setRiderId(null);
+        delivery.setRiderDisplayName(null);
+        delivery.setRiderPhone(null);
+        delivery.setRiderLocation(null);
+        delivery.setRiderLocationUpdatedAt(null);
+        delivery.setAssignedAt(null);
+        delivery.setAcceptedAt(null);
+        delivery.setPickedUpAt(null);
+        delivery.setStatus(DeliveryStatus.PENDING_ASSIGNMENT);
+        clearEstimate(delivery);
+        Delivery saved = touch(delivery);
+        log.info("Rider removed from delivery {} by the admin; order {} stays active and waiting",
+                delivery.getId(), delivery.getOrderId());
+        return saved;
+    }
+
     // ------------------------------------------------------------------
     // Queries
     // ------------------------------------------------------------------

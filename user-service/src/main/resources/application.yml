@@ -27,6 +27,10 @@ admin:
   # env var (see .env / .env.example at the repo root).
   signup-key: ${ADMIN_SIGNUP_KEY:ad123}
 
+rider:
+  # Secret key required when signing up with the DELIVERYMAN role; overridable via RIDER_SIGNUP_KEY.
+  signup-key: ${RIDER_SIGNUP_KEY:rd123}
+
 eureka:
   client:
     register-with-eureka: true

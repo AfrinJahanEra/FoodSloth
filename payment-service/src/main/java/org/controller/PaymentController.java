@@ -89,13 +89,6 @@ public class PaymentController {
                 : PaymentResponse.from(paymentService.requireOwnedBy(requireAuthenticated(userId), payment));
     }
 
-    @PostMapping("/{id}/refund")
-    public PaymentResponse refundPayment(@RequestHeader(value = "X-User-Role", required = false) String role,
-                                 @PathVariable String id) {
-        requireAdmin(role);
-        return PaymentResponse.from(paymentService.refund(id));
-    }
-
     // ------------------------------------------------------------------
     // Stripe-facing (no token - see the class note)
     // ------------------------------------------------------------------

@@ -267,27 +267,6 @@ public class PaymentService {
         }
     }
 
-    public Payment refund(String paymentId) {
-        Payment payment = getById(paymentId);
-        if (payment.getStatus() != PaymentStatus.SUCCEEDED) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only a succeeded payment can be refunded");
-        }
-        if (payment.getStripePaymentIntentId() == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Payment has no associated Stripe PaymentIntent");
-        }
-
-        try {
-            Refund.create(RefundCreateParams.builder()
-                    .setPaymentIntent(payment.getStripePaymentIntentId())
-                    .build());
-            payment.setStatus(PaymentStatus.REFUNDED);
-            payment.setUpdatedAt(Instant.now());
-            return paymentRepository.save(payment);
-        } catch (StripeException e) {
-            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Refund failed: " + e.getMessage());
-        }
-    }
-
     public Payment getById(String id) {
         return paymentRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Payment not found"));
