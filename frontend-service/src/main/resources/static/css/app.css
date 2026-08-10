@@ -32,7 +32,7 @@
     --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.05);
     --shadow-md: 0 6px 18px rgba(16, 24, 40, 0.08);
 
-    --font: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+    --font: "Poppins", "Segoe UI", system-ui, -apple-system, sans-serif;
 }
 
 * { box-sizing: border-box; }
@@ -374,20 +374,20 @@ body.landing main { max-width: none; margin: 0; padding: 0; }
 
 .hero {
     position: relative;
-    background: #f4efe8;
+    background: linear-gradient(100deg, #f05454, #de4444);
     overflow: hidden;
 }
 
-/* Soft scrim over the artwork's left side keeps the copy readable. */
+/* Soft red scrim over the artwork's left side keeps the white copy readable. */
 .hero::before {
     content: '';
     position: absolute;
     inset: 0;
     background: linear-gradient(90deg,
-        rgba(250, 247, 242, 0.97) 0%,
-        rgba(250, 247, 242, 0.88) 30%,
-        rgba(250, 247, 242, 0.45) 52%,
-        rgba(250, 247, 242, 0) 72%);
+        rgba(224, 68, 68, 0.92) 0%,
+        rgba(224, 68, 68, 0.6) 30%,
+        rgba(224, 68, 68, 0.22) 52%,
+        rgba(224, 68, 68, 0) 72%);
     pointer-events: none;
 }
 
@@ -396,7 +396,7 @@ body.landing main { max-width: none; margin: 0; padding: 0; }
     width: 100%;
     max-height: 560px;
     object-fit: cover;
-    object-position: center;
+    object-position: right center;
 }
 
 /* Tagline and actions sit on top of the artwork, over its empty left side. */
@@ -425,9 +425,9 @@ body.landing main { max-width: none; margin: 0; padding: 0; }
     font-weight: 700;
     letter-spacing: 0.14em;
     text-transform: uppercase;
-    color: var(--brand);
-    background: rgba(217, 43, 43, 0.09);
-    border: 1px solid rgba(217, 43, 43, 0.22);
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.16);
+    border: 1px solid rgba(255, 255, 255, 0.4);
     border-radius: 999px;
     padding: 5px 12px;
     margin-bottom: 14px;
@@ -439,7 +439,7 @@ body.landing main { max-width: none; margin: 0; padding: 0; }
     font-weight: 800;
     letter-spacing: -0.035em;
     line-height: 1.04;
-    color: #201512;
+    color: #ffffff;
 }
 
 .hero-tagline {
@@ -447,7 +447,7 @@ body.landing main { max-width: none; margin: 0; padding: 0; }
     font-size: clamp(16px, 2.4vw, 22px);
     font-weight: 700;
     letter-spacing: -0.01em;
-    color: var(--brand-dark);
+    color: #ffe3de;
 }
 
 .hero-sub {
@@ -455,7 +455,7 @@ body.landing main { max-width: none; margin: 0; padding: 0; }
     max-width: 46ch;
     font-size: 14px;
     line-height: 1.6;
-    color: #57493f;
+    color: rgba(255, 255, 255, 0.88);
 }
 
 .hero-actions {
@@ -465,25 +465,27 @@ body.landing main { max-width: none; margin: 0; padding: 0; }
     flex-wrap: wrap;
 }
 
-/* Solid brand primary; frosted-glass secondary - both sit on the artwork. */
+/* White pill primary; frosted outline secondary - both sit on the red artwork. */
 .btn-hero {
-    background: var(--brand);
-    border: 2px solid var(--brand);
-    color: #fff;
-    padding: 10px 24px;
+    background: #ffffff;
+    border: 2px solid #ffffff;
+    color: var(--brand);
+    border-radius: 999px;
+    padding: 10px 26px;
     font-size: 14.5px;
-    box-shadow: 0 8px 20px rgba(217, 43, 43, 0.28);
+    font-weight: 600;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
 }
-.btn-hero:hover { background: var(--brand-dark); border-color: var(--brand-dark); }
+.btn-hero:hover { background: #ffe9e6; border-color: #ffe9e6; }
 
 .btn-hero.ghost {
-    background: rgba(255, 255, 255, 0.66);
-    border-color: rgba(32, 21, 18, 0.18);
-    color: #201512;
+    background: rgba(255, 255, 255, 0.14);
+    border-color: rgba(255, 255, 255, 0.75);
+    color: #ffffff;
     box-shadow: none;
     backdrop-filter: blur(6px);
 }
-.btn-hero.ghost:hover { background: rgba(255, 255, 255, 0.9); }
+.btn-hero.ghost:hover { background: rgba(255, 255, 255, 0.28); }
 
 /* Small icon + text selling points under the call to action. */
 .hero-features {
@@ -499,7 +501,7 @@ body.landing main { max-width: none; margin: 0; padding: 0; }
     gap: 7px;
     font-size: 12.5px;
     font-weight: 600;
-    color: #57493f;
+    color: rgba(255, 255, 255, 0.92);
 }
 
 .landing-section { max-width: 1360px; margin: 0 auto; padding: 44px 24px 56px; }

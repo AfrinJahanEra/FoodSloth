@@ -79,6 +79,26 @@ App.register('/kitchen', {
         /** Order ids whose "Show details" panel is open - survives the 5s refresh. */
         const expanded = new Set();
 
+        /** Rider the admin picked per delivery id - survives the 5s re-render, so the
+         *  dropdown never snaps back to the first rider while the admin is deciding. */
+        const pickedRiders = new Map();
+
+        /** Rider dropdown that remembers the admin's pick across re-renders. */
+        const riderPick = (deliveryId, candidates) => {
+            if (pickedRiders.has(deliveryId)
+                && !candidates.some(r => r.id === pickedRiders.get(deliveryId))) {
+                pickedRiders.delete(deliveryId); // the picked rider is no longer assignable
+            }
+            const pick = UI.el('select', {},
+                ...candidates.map(r => UI.el('option', {
+                    value: r.id,
+                    selected: pickedRiders.get(deliveryId) === r.id ? 'selected' : null
+                }, (r.displayName || r.phone || 'Rider') + (r.phone ? ' · ' + r.phone : '')
+                    + ' · ' + r.slotsRemainingToday + ' slot(s) left')));
+            pick.addEventListener('change', () => pickedRiders.set(deliveryId, pick.value));
+            return pick;
+        };
+
         const content = UI.el('div', {});
         const ordersBtn = UI.el('button', {}, Icon.of('receipt', 15), 'Orders');
         const deliveryBtn = UI.el('button', {}, Icon.of('bike', 15), 'Delivery');
@@ -189,9 +209,7 @@ App.register('/kitchen', {
                         if (!candidates.length) {
                             foot.push(UI.el('span', { class: 'muted' }, 'No free delivery man right now'));
                         } else {
-                            const pick = UI.el('select', {},
-                                ...candidates.map(r => UI.el('option', { value: r.id },
-                                    (r.displayName || r.phone || 'Rider') + (r.phone ? ' · ' + r.phone : '') + ' · ' + r.slotsRemainingToday + ' slot(s) left')));
+                            const pick = riderPick(delivery.id, candidates);
                             foot.push(pick, UI.el('button', {
                                 class: 'btn-ok btn-small',
                                 onclick: async () => {
@@ -333,9 +351,7 @@ App.register('/kitchen', {
                     if (!candidates.length) {
                         controls.push(UI.el('span', { class: 'muted' }, 'No free delivery man right now'));
                     } else {
-                        const pick = UI.el('select', {},
-                            ...candidates.map(r => UI.el('option', { value: r.id },
-                                (r.displayName || r.phone || 'Rider') + (r.phone ? ' · ' + r.phone : '') + ' · ' + r.slotsRemainingToday + ' slot(s) left')));
+                        const pick = riderPick(d.id, candidates);
                         controls.push(pick, UI.el('button', {
                             class: 'btn-ok btn-small',
                             onclick: async () => {
@@ -351,16 +367,17 @@ App.register('/kitchen', {
                     }
                 }
 
-                // Admin-only cancel: frees the rider's slot so they can be assigned again.
-                // Riders have no cancel button anywhere - only the admin can call this.
-                if (d.status !== 'DELIVERED' && d.status !== 'CANCELLED') {
+                // Cancel removes only the rider assignment: the slot is freed and the job goes
+                // back to "waiting for rider" so another rider can take it. The order itself is
+                // never touched. Riders have no cancel button anywhere - only the admin can.
+                if (d.riderId && d.status !== 'DELIVERED' && d.status !== 'CANCELLED') {
                     controls.push(UI.el('button', {
                         class: 'btn-danger btn-small',
                         onclick: async () => {
-                            if (!confirm('Cancel ' + orderRef(d.orderNo, d.orderId) + '? The rider\'s slot will be freed.')) return;
+                            if (!confirm('Remove the rider from ' + orderRef(d.orderNo, d.orderId) + '? The order stays active and waits for a new rider.')) return;
                             try {
-                                await API.call(`/deliveries/${d.id}/cancel`, { method: 'PATCH', body: {} });
-                                UI.toast('Delivery cancelled - the slot is free again', 'ok');
+                                await API.call(`/deliveries/${d.id}/unassign`, { method: 'PATCH', body: {} });
+                                UI.toast('Rider removed - the order is waiting for a new rider', 'ok');
                                 await refresh();
                             } catch (err) { UI.error(err); }
                         }

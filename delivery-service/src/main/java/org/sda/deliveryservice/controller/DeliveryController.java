@@ -211,6 +211,17 @@ public class DeliveryController {
         return DeliveryResponse.from(deliveryService.cancelByAdmin(deliveryId));
     }
 
+    /**
+     * The admin removes the rider from a job. The order is untouched - the delivery goes back
+     * to waiting and can be handed to another rider.
+     */
+    @PatchMapping("/{deliveryId}/unassign")
+    public DeliveryResponse unassign(@RequestHeader(value = "X-User-Role", required = false) String role,
+                             @PathVariable String deliveryId) {
+        requireAdmin(role);
+        return DeliveryResponse.from(deliveryService.unassign(deliveryId));
+    }
+
     // ------------------------------------------------------------------
     // Gateway-header guards
     // ------------------------------------------------------------------

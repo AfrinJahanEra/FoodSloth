@@ -39,14 +39,19 @@ public class UserService {
     @Autowired
     private MongoTemplate mongoTemplate;
 
-    /** Secret key a signup must present to become an ADMIN; comes from ADMIN_SIGNUP_KEY (.env). */
+    /** Secret key a signup must present to become an ADMIN; overridable via ADMIN_SIGNUP_KEY. */
     @Value("${admin.signup-key}")
     private String adminSignupKey;
+
+    /** Secret key a signup must present to become a DELIVERYMAN; overridable via RIDER_SIGNUP_KEY. */
+    @Value("${rider.signup-key}")
+    private String riderSignupKey;
 
     private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     public User signup(String name, String email, String phone, String password, Role role,
-                        String vehicleType, String licenseNumber, String restaurantId, String adminKey) {
+                        String vehicleType, String licenseNumber, String restaurantId, String adminKey,
+                        String riderKey) {
         if (email == null || email.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Email is required");
         }
@@ -61,14 +66,17 @@ public class UserService {
         }
 
         Role effectiveRole = role != null ? role : Role.CUSTOMER;
-        if (effectiveRole == Role.DELIVERYMAN
-                && (vehicleType == null || vehicleType.isBlank() || licenseNumber == null || licenseNumber.isBlank())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "vehicleType and licenseNumber are required for a deliveryman signup");
+        if (effectiveRole == Role.DELIVERYMAN) {
+            if (vehicleType == null || vehicleType.isBlank() || licenseNumber == null || licenseNumber.isBlank()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "vehicleType and licenseNumber are required for a deliveryman signup");
+            }
+            if (riderKey == null || !riderKey.equals(riderSignupKey)) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Invalid rider secret key");
+            }
         }
         if (effectiveRole == Role.ADMIN && (adminKey == null || !adminKey.equals(adminSignupKey))) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
-                    "Invalid admin secret key - an admin account needs the key from the .env file");
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Invalid admin secret key");
         }
         // The platform is single-tenant: Restaurant Service owns exactly one restaurant and
         // authorises by role alone, so an admin may sign up before any restaurant id exists.
