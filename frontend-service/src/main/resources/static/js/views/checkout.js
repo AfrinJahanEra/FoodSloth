@@ -4,6 +4,15 @@
  */
 'use strict';
 
+// Dhaka-only delivery: the same bounding box the backend enforces, so an
+// out-of-area address is caught before the checkout call even leaves.
+const DHAKA_BOX = { latMin: 23.66, latMax: 23.90, lngMin: 90.25, lngMax: 90.55 };
+const DHAKA_MESSAGE = 'Sorry, we currently deliver only within Dhaka, Bangladesh.';
+const realPin = (lat, lng) => Number.isFinite(lat) && Number.isFinite(lng)
+    && !(Math.abs(lat) < 0.01 && Math.abs(lng) < 0.01);
+const insideDhaka = (lat, lng) => lat >= DHAKA_BOX.latMin && lat <= DHAKA_BOX.latMax
+    && lng >= DHAKA_BOX.lngMin && lng <= DHAKA_BOX.lngMax;
+
 App.register('/checkout', {
     roles: ['CUSTOMER'],
 
@@ -53,7 +62,11 @@ App.register('/checkout', {
                             const fix = await UI.here();
                             aLat.value = fix.latitude.toFixed(6);
                             aLng.value = fix.longitude.toFixed(6);
-                            UI.toast('GPS pin filled from this device', 'ok');
+                            if (!insideDhaka(fix.latitude, fix.longitude)) {
+                                UI.toast(DHAKA_MESSAGE, 'err');
+                            } else {
+                                UI.toast('GPS pin filled from this device', 'ok');
+                            }
                         } catch (err) { UI.toast(err.message, 'err'); }
                     }
                 }, 'Use my current location (GPS pin)')),
@@ -89,6 +102,10 @@ App.register('/checkout', {
                     const chosen = addresses.find(a => a.id === address.value);
                     if (!chosen) {
                         UI.toast('Add a delivery address first', 'err');
+                        return;
+                    }
+                    if (realPin(chosen.latitude, chosen.longitude) && !insideDhaka(chosen.latitude, chosen.longitude)) {
+                        UI.toast(DHAKA_MESSAGE, 'err');
                         return;
                     }
                     submit.disabled = true;

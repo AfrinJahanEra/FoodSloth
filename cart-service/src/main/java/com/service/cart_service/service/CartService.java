@@ -33,10 +33,13 @@ public class CartService {
 
     private final CartRepository cartRepository;
     private final AmqpTemplate amqpTemplate;
+    private final DhakaDeliveryValidator dhakaDeliveryValidator;
 
-    public CartService(CartRepository cartRepository, AmqpTemplate amqpTemplate) {
+    public CartService(CartRepository cartRepository, AmqpTemplate amqpTemplate,
+                       DhakaDeliveryValidator dhakaDeliveryValidator) {
         this.cartRepository = cartRepository;
         this.amqpTemplate = amqpTemplate;
+        this.dhakaDeliveryValidator = dhakaDeliveryValidator;
     }
 
     public Cart getCart(String userId) {
@@ -107,6 +110,13 @@ public class CartService {
     public String checkout(String userId, CheckoutRequest request) {
         if (request.deliveryAddress() == null || request.deliveryAddress().isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "deliveryAddress is required");
+        }
+        // Dhaka-only delivery: the customer's actual location (pin, or the geocoded address
+        // when no pin was saved) must be inside Dhaka, Bangladesh.
+        String outsideDhaka = dhakaDeliveryValidator.check(
+                request.deliveryLatitude(), request.deliveryLongitude(), request.deliveryAddress());
+        if (outsideDhaka != null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, outsideDhaka);
         }
 
         Cart cart = requireCart(userId);

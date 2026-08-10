@@ -55,13 +55,16 @@ public class OrderService {
     private final OrderEventPublisher eventPublisher;
     private final RabbitTemplate rabbitTemplate;
     private final MongoTemplate mongoTemplate;
+    private final DhakaDeliveryValidator dhakaDeliveryValidator;
 
     public OrderService(OrderRepository orderRepository, OrderEventPublisher eventPublisher,
-                        RabbitTemplate rabbitTemplate, MongoTemplate mongoTemplate) {
+                        RabbitTemplate rabbitTemplate, MongoTemplate mongoTemplate,
+                        DhakaDeliveryValidator dhakaDeliveryValidator) {
         this.orderRepository = orderRepository;
         this.eventPublisher = eventPublisher;
         this.rabbitTemplate = rabbitTemplate;
         this.mongoTemplate = mongoTemplate;
+        this.dhakaDeliveryValidator = dhakaDeliveryValidator;
     }
 
     // ------------------------------------------------------------------
@@ -217,6 +220,13 @@ public class OrderService {
     public String reorder(String userId, String role, String id) {
         Order original = findOrderOrThrow(id);
         requireOwnerOrAdmin(userId, role, original);
+        // Dhaka-only delivery applies to reorders too: the original drop-off location must
+        // still be inside Dhaka, Bangladesh.
+        String outsideDhaka = dhakaDeliveryValidator.check(
+                original.getDeliveryLatitude(), original.getDeliveryLongitude(), original.getDeliveryAddress());
+        if (outsideDhaka != null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, outsideDhaka);
+        }
         if (original.getItems().isEmpty()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "This order has no items to reorder");
         }
